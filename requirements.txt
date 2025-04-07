@@ -1,5 +1,5 @@
-streamlit
+openai
 pandas
-openai>=1.0.0
+streamlit
 fpdf
-openpyxl
+plotly

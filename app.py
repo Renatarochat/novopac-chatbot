@@ -75,7 +75,8 @@ def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
 
 # Interface Streamlit
 st.markdown("## Assistente virtual do NOVO PAC")
-user_input = st.text_input("O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais. Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:")
+user_input = st.text_input("""O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.  
+**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**""")
 
 if user_input:
     resposta = get_bot_response(user_input)

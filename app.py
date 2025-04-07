@@ -4,30 +4,38 @@ import openai
 from openai import OpenAI
 from fpdf import FPDF
 import json
-from io import BytesIO
+import io
 
-# Carregar chave da API
+# Inicializa memória de sessão
+if "filtro_atual" not in st.session_state:
+    st.session_state.filtro_atual = None
+
+# Chave da API OpenAI
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Carrega os dados do Excel
+# Carregar dados do Excel
 @st.cache_data
 def carregar_dados():
     return pd.read_excel("novopac.xlsx")
 
 data = carregar_dados()
 
-# Interface principal
+# Interface
 st.markdown("## Assistente virtual do NOVO PAC")
-st.markdown("""
+
+user_input = st.text_input("""
 O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.  
 
-**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**
-""")
+**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**""")
 
-# Entrada do usuário
-user_input = st.text_input("")
+# Exibir filtro atual + opção para limpar
+if st.session_state.filtro_atual:
+    st.info(f"📌 Local atual em memória: `{st.session_state.filtro_atual}`")
+    if st.button("🧹 Limpar local atual"):
+        st.session_state.filtro_atual = None
+        st.success("Filtro atual foi limpo. Você pode perguntar sobre outro local.")
 
-# Função para buscar resposta do chatbot
+# Função para consultar o modelo
 def get_bot_response(user_input):
     prompt = f"""
     Você é um assistente que responde sobre empreendimentos do NOVO PAC com base em uma tabela.
@@ -50,15 +58,17 @@ def get_bot_response(user_input):
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
         )
-        resultado = json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        resultado = json.loads(content)
+
         if resultado.get("tipo") == "relatorio":
             return "GERAR_RELATORIO"
-        return resultado
 
+        return resultado
     except Exception as e:
         return f"Erro ao consultar OpenAI: {str(e)}"
 
-# Geração do relatório PDF
+# Função para gerar PDF
 def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
     pdf = FPDF()
     pdf.add_page()
@@ -68,43 +78,38 @@ def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
     pdf.cell(200, 10, txt=f"Filtro aplicado: {filtro_tipo.title()} - {filtro_valor}", ln=True)
     pdf.cell(200, 10, txt=f"Total de empreendimentos encontrados: {len(dados_filtrados)}", ln=True)
     pdf.ln(10)
+
     for _, row in dados_filtrados.iterrows():
         linha = f"{row['Município']} - {row['UF']}: {row['Empreendimento']}"
         pdf.multi_cell(0, 10, txt=linha)
+
     pdf.output("relatorio.pdf")
-    st.success("Relatório gerado com sucesso! 📄")
     with open("relatorio.pdf", "rb") as file:
-        st.download_button("📥 Baixar Relatório PDF", file, file_name="relatorio.pdf")
+        st.download_button("📄 Baixar Relatório em PDF", file, file_name="relatorio.pdf")
 
-# Geração de Excel
-def gerar_excel(dados_filtrados):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        dados_filtrados.to_excel(writer, index=False)
-    st.download_button(
-        label="📊 Baixar Excel",
-        data=output.getvalue(),
-        file_name="relatorio.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+# Função para gerar Excel
+def gerar_excel(dados):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        dados.to_excel(writer, index=False, sheet_name="Empreendimentos")
+    st.download_button("📊 Baixar Excel", output.getvalue(), file_name="empreendimentos.xlsx")
 
-# Filtros adicionais
-estagio = st.selectbox("Filtrar por estágio da obra:", options=["Todos"] + list(data["Estágio"].dropna().unique()))
-
-# Processamento da pergunta
+# Processa a pergunta
 if user_input:
     resposta = get_bot_response(user_input)
 
     if isinstance(resposta, str):
         if resposta == "GERAR_RELATORIO":
-            gerar_relatorio_pdf("geral", "Todos", data)
-            gerar_excel(data)
+            st.info("Gerando relatório completo...")
+            gerar_relatorio_pdf("Geral", "Todos", data)
         else:
             st.error(resposta)
-
     elif isinstance(resposta, dict):
         tipo = resposta.get("tipo")
         valor = resposta.get("valor")
+
+        if tipo in ["estado", "municipio"]:
+            st.session_state.filtro_atual = f"{tipo.title()} - {valor}"
 
         st.markdown(f"🔍 **Filtro identificado**: **{tipo.title()}** - `{valor}`")
 
@@ -115,16 +120,20 @@ if user_input:
         else:
             dados_filtrados = pd.DataFrame()
 
-        # Filtro adicional por estágio
-        if estagio != "Todos":
-            dados_filtrados = dados_filtrados[dados_filtrados["Estágio"] == estagio]
-
+        # Filtro adicional: estágio da obra
         if not dados_filtrados.empty:
-            # Ordenação (opcional)
-            dados_filtrados = dados_filtrados.sort_values(by="Empreendimento")
-            st.write(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio"]])
+            if "Situação" in dados_filtrados.columns:
+                estagios = ["Todos"] + sorted(dados_filtrados["Situação"].dropna().unique())
+                estagio = st.selectbox("Filtrar por estágio da obra:", options=estagios)
+                if estagio != "Todos":
+                    dados_filtrados = dados_filtrados[dados_filtrados["Situação"] == estagio]
 
-            # Botões de download
+            # Ordenação
+            ordenar_por = st.selectbox("Ordenar por:", options=["Empreendimento", "Código", "Município"])
+            dados_filtrados = dados_filtrados.sort_values(by=ordenar_por)
+
+            # Exibição e exportação
+            st.write(dados_filtrados[["Município", "UF", "Empreendimento", "Situação"]])
             gerar_relatorio_pdf(tipo, valor, dados_filtrados)
             gerar_excel(dados_filtrados)
         else:

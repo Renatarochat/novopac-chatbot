@@ -1,122 +1,105 @@
 import streamlit as st
 import pandas as pd
+import openai
 from fpdf import FPDF
-from openai import OpenAI
-import os
+import json
 
-# Configuração da API
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Carregar chave da API
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Função para carregar os dados do Excel
+# Carrega os dados do Excel
 @st.cache_data
 def carregar_dados():
     return pd.read_excel("novopac.xlsx")
 
-# Função para gerar PDF
-def gerar_pdf(dados_filtrados, tipo, valor):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
+data = carregar_dados()
 
-    pdf.cell(200, 10, txt=f"Relatório de Empreendimentos - {tipo.title()}: {valor}", ln=True, align="C")
-    pdf.ln(10)
-    pdf.cell(200, 10, txt=f"Total de empreendimentos: {len(dados_filtrados)}", ln=True)
-    pdf.ln(5)
-
-    agrupado = dados_filtrados.groupby(['Eixo', 'Subeixo', 'Modalidade'])
-
-    for (eixo, subeixo, modalidade), grupo in agrupado:
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(200, 10, txt=f"{eixo} / {subeixo} / {modalidade}", ln=True)
-        pdf.set_font("Arial", size=10)
-
-        for _, linha in grupo.iterrows():
-            texto = f"- {linha['Nome do Empreendimento']} | Estágio: {linha['Estágio']} | Executor: {linha['Executor']}"
-            pdf.multi_cell(0, 8, txt=texto)
-
-        pdf.ln(5)
-
-    caminho_pdf = f"relatorio_{tipo}_{valor}.pdf"
-    pdf.output(caminho_pdf)
-    return caminho_pdf
-
-# Função que consulta o modelo da OpenAI
-def get_bot_response(user_input, data):
+# Função para buscar resposta do chatbot
+def get_bot_response(user_input):
     prompt = f"""
     Você é um assistente que responde sobre empreendimentos do NOVO PAC com base em uma tabela.
 
     Responda de forma objetiva e clara, extraindo o ESTADO ou MUNICÍPIO da frase abaixo. 
     Se a pergunta for sobre geração de relatório, diga "GERAR_RELATORIO".
-    Retorne também o tipo de filtro (estado ou municipio).
+    Retorne no seguinte formato JSON (sem explicações):
+
+    {{
+      "tipo": "estado" ou "municipio" ou "relatorio",
+      "valor": "nome extraído"
+    }}
 
     Pergunta: "{user_input}"
     """
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
         )
-        content = response.choices[0].message.content
 
-        if "GERAR_RELATORIO" in content.upper():
+        content = response["choices"][0]["message"]["content"]
+
+        resultado = json.loads(content)
+
+        if resultado.get("tipo") == "relatorio":
             return "GERAR_RELATORIO"
 
-        for estado in data['UF'].unique():
-            if estado.lower() in user_input.lower():
-                return {"tipo": "estado", "valor": estado}
-
-        for municipio in data['Município'].unique():
-            if municipio.lower() in user_input.lower():
-                return {"tipo": "municipio", "valor": municipio}
-
-        return content
+        return resultado
 
     except Exception as e:
         return f"Erro ao consultar OpenAI: {str(e)}"
 
+# Função para gerar relatório PDF
+def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="Relatório de Empreendimentos - NOVO PAC", ln=True, align="C")
+    pdf.ln(10)
+
+    pdf.cell(200, 10, txt=f"Filtro aplicado: {filtro_tipo.title()} - {filtro_valor}", ln=True)
+    pdf.cell(200, 10, txt=f"Total de empreendimentos encontrados: {len(dados_filtrados)}", ln=True)
+    pdf.ln(10)
+
+    for i, row in dados_filtrados.iterrows():
+        linha = f"{row['Município']} - {row['UF']}: {row['Nome do Empreendimento']}"
+        pdf.multi_cell(0, 10, txt=linha)
+
+    pdf.output("relatorio.pdf")
+    st.success("Relatório gerado com sucesso! 📄")
+    with open("relatorio.pdf", "rb") as file:
+        st.download_button("📥 Baixar Relatório PDF", file, file_name="relatorio.pdf")
+
 # Interface Streamlit
-st.set_page_config(page_title="Chatbot NOVO PAC", page_icon="🏗️")
-st.title("🏗️ Chatbot - NOVO PAC")
-
-data = carregar_dados()
-
-if "historico" not in st.session_state:
-    st.session_state.historico = []
-
-user_input = st.text_input("Digite sua pergunta:")
+st.markdown("## Assistente virtual do NOVO PAC")
+user_input = st.text_input("O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais. Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:")
 
 if user_input:
-    resposta = get_bot_response(user_input, data)
-    st.session_state.historico.append(("Você", user_input))
+    resposta = get_bot_response(user_input)
 
-    if resposta == "GERAR_RELATORIO":
-        if "filtro" in st.session_state:
-            tipo = st.session_state["filtro"]["tipo"]
-            valor = st.session_state["filtro"]["valor"]
-            dados_filtrados = data[data[tipo.title()] == valor]
+    if isinstance(resposta, str):
+        st.error(resposta)
 
-            if not dados_filtrados.empty:
-                caminho_pdf = gerar_pdf(dados_filtrados, tipo, valor)
-                with open(caminho_pdf, "rb") as file:
-                    st.download_button(
-                        label="📥 Baixar Relatório em PDF",
-                        data=file,
-                        file_name=caminho_pdf,
-                        mime="application/pdf",
-                    )
-                st.success("Relatório gerado com sucesso!")
-            else:
-                st.warning("Nenhum dado encontrado para esse filtro.")
-        else:
-            st.warning("Por favor, especifique um estado ou município antes de gerar o relatório.")
+    elif resposta == "GERAR_RELATORIO":
+        st.info("Gerando relatório com todos os dados...")
+        gerar_relatorio_pdf("geral", "Todos", data)
+
     elif isinstance(resposta, dict):
-        st.session_state["filtro"] = resposta
-        st.markdown(f"🔍 Filtro identificado: **{resposta['tipo'].title()}** - *{resposta['valor']}*")
-    else:
-        st.session_state.historico.append(("Chatbot", resposta))
+        tipo = resposta.get("tipo")
+        valor = resposta.get("valor")
 
-# Exibir histórico
-for autor, msg in st.session_state.historico:
-    st.markdown(f"**{autor}:** {msg}")
+        st.markdown(f"🔍 **Filtro identificado**: **{tipo.title()}** - `{valor}`")
+
+        if tipo == "estado":
+            dados_filtrados = data[data["UF"].str.upper() == valor.upper()]
+        elif tipo == "municipio":
+            dados_filtrados = data[data["Município"].str.lower() == valor.lower()]
+        else:
+            dados_filtrados = pd.DataFrame()
+
+        if not dados_filtrados.empty:
+            st.write(dados_filtrados[["Município", "UF", "Nome do Empreendimento"]])
+            gerar_relatorio_pdf(tipo, valor, dados_filtrados)
+        else:
+            st.warning("Nenhum empreendimento encontrado para esse filtro.")

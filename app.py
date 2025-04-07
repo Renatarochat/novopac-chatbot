@@ -41,7 +41,6 @@ def get_bot_response(user_input):
         )
 
         content = response.choices[0].message.content
-
         resultado = json.loads(content)
 
         if resultado.get("tipo") == "relatorio":
@@ -75,9 +74,14 @@ def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
 
 # Interface Streamlit
 st.markdown("## Assistente virtual do NOVO PAC")
-user_input = st.text_input("""O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.  
 
-**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**""")
+st.markdown("""
+O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.  
+
+**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**
+""")
+
+user_input = st.text_input("")
 
 if user_input:
     resposta = get_bot_response(user_input)
@@ -104,6 +108,7 @@ if user_input:
 
         if not dados_filtrados.empty:
             st.write(dados_filtrados[["Município", "UF", "Empreendimento"]])
-            gerar_relatorio_pdf(tipo, valor, dados_filtrados)
+            if st.button("📄 Gerar Relatório em PDF"):
+                gerar_relatorio_pdf(tipo, valor, dados_filtrados)
         else:
             st.warning("Nenhum empreendimento encontrado para esse filtro.")

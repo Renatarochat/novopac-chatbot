@@ -3,36 +3,35 @@ import pandas as pd
 import openai
 from openai import OpenAI
 from fpdf import FPDF
+import plotly.express as px
 import json
 import io
-import plotly.express as px
 
-# Carregar chave da API
+# API do OpenAI
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Carrega os dados do Excel
+# Carrega os dados com cache
 @st.cache_data
 def carregar_dados():
     return pd.read_excel("novopac.xlsx")
 
 data = carregar_dados()
-data["Municipio_UF"] = data["Município"] + " - " + data["UF"]
 
-# Histórico de perguntas
+# Histórico simples de chat
 if "historico" not in st.session_state:
-    st.session_state["historico"] = []
+    st.session_state.historico = []
 
-# Função para buscar resposta do chatbot
+# Extrai entidade da pergunta
 def get_bot_response(user_input):
     prompt = f"""
     Você é um assistente que responde sobre empreendimentos do NOVO PAC com base em uma tabela.
 
-    Responda de forma objetiva e clara, extraindo o ESTADO ou MUNICÍPIO da frase abaixo. 
-    Se a pergunta for sobre geração de relatório, diga "GERAR_RELATORIO".
-    Retorne no seguinte formato JSON (sem explicações):
+    Extraia o ESTADO, MUNICÍPIO ou ambos da frase. 
+    Se a pergunta for sobre relatório, retorne tipo "relatorio".
 
+    Retorne JSON no formato:
     {{
-      "tipo": "estado" ou "municipio" ou "relatorio",
+      "tipo": "estado" ou "municipio" ou "uf_municipio" ou "relatorio",
       "valor": "nome extraído"
     }}
 
@@ -46,17 +45,11 @@ def get_bot_response(user_input):
             temperature=0.2,
         )
         content = response.choices[0].message.content
-        resultado = json.loads(content)
-
-        if resultado.get("tipo") == "relatorio":
-            return "GERAR_RELATORIO"
-
-        return resultado
-
+        return json.loads(content)
     except Exception as e:
-        return f"Erro ao consultar OpenAI: {str(e)}"
+        return {"tipo": "erro", "valor": str(e)}
 
-# Função para gerar relatório PDF
+# Gera PDF
 def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
     pdf = FPDF()
     pdf.add_page()
@@ -67,7 +60,7 @@ def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
     pdf.cell(200, 10, txt=f"Total de empreendimentos encontrados: {len(dados_filtrados)}", ln=True)
     pdf.ln(10)
 
-    for _, row in dados_filtrados.iterrows():
+    for i, row in dados_filtrados.iterrows():
         linha = f"{row['Município']} - {row['UF']}: {row['Empreendimento']}"
         pdf.multi_cell(0, 10, txt=linha)
 
@@ -76,66 +69,76 @@ def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
     with open("relatorio.pdf", "rb") as file:
         st.download_button("📥 Baixar Relatório PDF", file, file_name="relatorio.pdf")
 
-# Interface Streamlit
+# Gera Excel
+def gerar_excel(dados_filtrados):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        dados_filtrados.to_excel(writer, index=False)
+    st.download_button("📥 Baixar Excel", output.getvalue(), file_name="dados_novopac.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+# Interface
 st.markdown("## Assistente virtual do NOVO PAC")
+st.markdown("""
+O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.  
 
-user_input = st.text_input("""O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.  
-\n**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**""")
+**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**
+""")
 
-estagio = st.selectbox("Filtrar por estágio da obra:", options=["Todos"] + list(data["Situação"].dropna().unique()))
-ordenar_por = st.selectbox("Ordenar por:", options=["Empreendimento", "Código"])
+user_input = st.text_input("")
 
 if user_input:
     st.session_state.historico.append(user_input)
+
     resposta = get_bot_response(user_input)
+    tipo = resposta.get("tipo")
+    valor = resposta.get("valor")
 
-    if isinstance(resposta, str):
-        st.error(resposta)
-
-    elif resposta == "GERAR_RELATORIO":
-        st.info("Gerando relatório com todos os dados...")
+    if tipo == "relatorio":
         gerar_relatorio_pdf("geral", "Todos", data)
 
-    elif isinstance(resposta, dict):
-        tipo = resposta.get("tipo")
-        valor = resposta.get("valor")
-
+    else:
         st.markdown(f"🔍 **Filtro identificado**: **{tipo.title()}** - `{valor}`")
 
         if tipo == "estado":
             dados_filtrados = data[data["UF"].str.upper() == valor.upper()]
         elif tipo == "municipio":
-            dados_filtrados = data[data["Municipio_UF"].str.lower() == valor.lower()]
+            dados_filtrados = data[data["Município"].str.lower() == valor.lower()]
+        elif tipo == "uf_municipio":
+            partes = valor.split("-")
+            if len(partes) == 2:
+                cidade, uf = partes[0].strip(), partes[1].strip()
+                dados_filtrados = data[(data["Município"].str.lower() == cidade.lower()) & (data["UF"].str.upper() == uf.upper())]
+            else:
+                dados_filtrados = pd.DataFrame()
         else:
             dados_filtrados = pd.DataFrame()
 
-        if estagio != "Todos":
-            dados_filtrados = dados_filtrados[dados_filtrados["Situação"] == estagio]
-
         if not dados_filtrados.empty:
+            # Filtros extras
+            estagio = st.selectbox("Filtrar por estágio da obra:", options=["Todos"] + list(data["Estágio"].dropna().unique()))
+            if estagio != "Todos":
+                dados_filtrados = dados_filtrados[dados_filtrados["Estágio"] == estagio]
+
+            # Ordenação
+            ordenar_por = st.selectbox("Ordenar por:", options=["Município", "Empreendimento"])
             dados_filtrados = dados_filtrados.sort_values(by=ordenar_por)
-            st.write(dados_filtrados[["Município", "UF", "Empreendimento", "Situação"]])
 
-            # PDF
+            # Tabela
+            st.dataframe(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio"]], use_container_width=True)
+
+            # Downloads
             gerar_relatorio_pdf(tipo, valor, dados_filtrados)
-
-            # Excel
-            output = io.BytesIO()
-            dados_filtrados.to_excel(output, index=False)
-            st.download_button("📥 Baixar Excel", output.getvalue(), file_name="relatorio.xlsx")
+            gerar_excel(dados_filtrados)
 
             # Gráfico
-            if "Classificação" in dados_filtrados.columns:
-                fig = px.bar(dados_filtrados["Classificação"].value_counts().reset_index(),
-                             x="index", y="Classificação",
-                             labels={"index": "Classificação", "Classificação": "Quantidade"},
-                             title="Distribuição das Obras por Classificação")
-                st.plotly_chart(fig)
+            opcao_grafico = st.selectbox("Visualizar gráfico por:", options=["Modalidade", "Classificação"])
+            fig = px.histogram(dados_filtrados, x=opcao_grafico, color=opcao_grafico, title=f"Distribuição por {opcao_grafico}")
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning("Nenhum empreendimento encontrado para esse filtro.")
+            st.warning("Nenhum empreendimento encontrado.")
 
 # Histórico de perguntas
 if st.session_state.historico:
-    st.markdown("### 💬 Histórico de Perguntas")
-    for pergunta in st.session_state.historico[-5:][::-1]:
-        st.write("🔸", pergunta)
+    st.markdown("### 💬 Últimas perguntas:")
+    for item in st.session_state.historico[-5:]:
+        st.markdown(f"- {item}")

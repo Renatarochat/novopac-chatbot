@@ -65,7 +65,7 @@ def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
     pdf.ln(10)
 
     for i, row in dados_filtrados.iterrows():
-        linha = f"{row['Município']} - {row['UF']}: {row['Nome do Empreendimento']}"
+        linha = f"{row['Município']} - {row['UF']}: {row['Empreendimento']}"
         pdf.multi_cell(0, 10, txt=linha)
 
     pdf.output("relatorio.pdf")
@@ -101,7 +101,7 @@ if user_input:
             dados_filtrados = pd.DataFrame()
 
         if not dados_filtrados.empty:
-            st.write(dados_filtrados[["Município", "UF", "Nome do Empreendimento"]])
+            st.write(dados_filtrados[["Município", "UF", "Empreendimento"]])
             gerar_relatorio_pdf(tipo, valor, dados_filtrados)
         else:
             st.warning("Nenhum empreendimento encontrado para esse filtro.")

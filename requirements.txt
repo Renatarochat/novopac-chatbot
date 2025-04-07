@@ -1,5 +1,6 @@
 streamlit
 pandas
-openai>=1.0.0
-fpdf
+openpyxl
 xlsxwriter
+fpdf
+openai

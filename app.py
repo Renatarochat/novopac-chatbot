@@ -1,19 +1,34 @@
 import streamlit as st
+import pandas as pd
 import openai
+import json
+from fpdf import FPDF
 
-
+# Configurar a chave da OpenAI (vinda do secrets do Streamlit Cloud)
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-def get_bot_response(user_input, data):
+# --- Funções ---
+
+# Carrega os dados do Excel
+@st.cache_data
+def carregar_dados():
+    df = pd.read_excel("novopac.xlsx")
+    return df
+
+# Chat com o modelo da OpenAI
+def interpretar_comando(user_input):
     prompt = f"""
-    Você é um assistente que responde sobre empreendimentos do NOVO PAC com base em uma tabela.
+Você é um assistente que responde perguntas sobre empreendimentos do NOVO PAC com base em uma tabela.
 
-    Responda de forma objetiva e clara, extraindo o ESTADO ou MUNICÍPIO da frase abaixo. 
-    Se a pergunta for sobre geração de relatório, diga "GERAR_RELATORIO".
-    Retorne também o tipo de filtro (estado ou municipio).
+Analise a frase do usuário e retorne um JSON com as seguintes chaves:
+- "acao": pode ser "responder" ou "gerar_relatorio"
+- "tipo_filtro": "estado", "municipio" ou null
+- "valor": o nome do estado ou município (sem acento), ou null
 
-    Pergunta: "{user_input}"
-    """
+Responda APENAS com o JSON. Sem explicações.
+
+Frase do usuário: "{user_input}"
+"""
 
     try:
         response = openai.ChatCompletion.create(
@@ -22,19 +37,18 @@ def get_bot_response(user_input, data):
             temperature=0.2,
         )
         content = response["choices"][0]["message"]["content"]
-
-        if "GERAR_RELATORIO" in content.upper():
-            return "GERAR_RELATORIO"
-
-        for estado in data['UF'].unique():
-            if estado.lower() in user_input.lower():
-                return {"tipo": "estado", "valor": estado}
-
-        for municipio in data['Município'].unique():
-            if municipio.lower() in user_input.lower():
-                return {"tipo": "municipio", "valor": municipio}
-
-        return content
+        resultado = json.loads(content)
+        return resultado
 
     except Exception as e:
-        return f"Erro ao consultar OpenAI: {str(e)}"
+        return {"erro": str(e)}
+
+# Gera o relatório em PDF
+def gerar_pdf(filtro_tipo, filtro_valor, dados_filtrados):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    titulo = f"Relatório - {filtro_tipo.capitalize()}: {filtro_valor}"
+    pdf.cell(200, 10, txt=titulo, ln=True, align='C')
+    pdf.cell(200, 10, txt=f"Total de empreend

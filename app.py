@@ -1,123 +1,86 @@
 import streamlit as st
 import pandas as pd
-from fpdf import FPDF
 import io
 
 st.set_page_config(page_title="Assistente virtual do NOVO PAC")
 
-# ===============================
-# FUNÇÕES AUXILIARES
-# ===============================
-
+# Carregar dados
 @st.cache_data
 def carregar_dados():
     return pd.read_excel("novopac.xlsx")
 
-def gerar_pdf(dados):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    for _, row in dados.iterrows():
-        linha = f"{row['Município']} - {row['UF']} | {row['Empreendimento']} | {row['Estágio']}"
-        pdf.multi_cell(0, 10, linha)
-    buffer = io.BytesIO()
-    pdf.output(buffer)
-    buffer.seek(0)
-    return buffer
-
-def gerar_excel(dados):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        dados.to_excel(writer, index=False)
-    output.seek(0)
-    return output
-
-# ===============================
-# CARREGAR DADOS
-# ===============================
-
 data = carregar_dados()
 
-# ===============================
-# INTERFACE
-# ===============================
-
-st.title("Assistente virtual do NOVO PAC")
-st.markdown(
-    "O Novo PAC é um programa de investimentos coordenado pelo governo federal...  \n"
-    "**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**"
-)
-
-# Inicializa histórico se não existir
+# Histórico de conversa
 if "historico" not in st.session_state:
-    st.session_state.historico = []
+    st.session_state["historico"] = []
 
-# Pergunta principal
-pergunta = st.text_input("Sua pergunta:", key="pergunta_inicial")
+# Cabeçalho
+st.title("Assistente virtual do NOVO PAC")
+st.markdown("""
+O Novo PAC é um programa de investimentos coordenado pelo governo federal...
 
-# Processa pergunta
+**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**
+""")
+
+# Entrada de pergunta
+pergunta = st.text_input("Sua pergunta:")
+
+# Processamento da pergunta
 if pergunta:
-    # Simples análise de localização na pergunta
-    filtro_municipio = None
-    filtro_uf = None
+    pergunta_lower = pergunta.lower()
 
-    for municipio in data["Município"].unique():
-        if municipio.lower() in pergunta.lower():
-            filtro_municipio = municipio
+    municipio = None
+    uf = None
+
+    # Buscar município e UF na pergunta (formato: Montes Claros - MG)
+    for index, row in data.iterrows():
+        cidade = str(row["Município"]).lower()
+        estado = str(row["UF"]).lower()
+        if cidade in pergunta_lower and estado in pergunta_lower:
+            municipio = row["Município"]
+            uf = row["UF"]
             break
 
-    for uf in data["UF"].unique():
-        if uf.lower() in pergunta.lower():
-            filtro_uf = uf
-            break
-
-    dados_filtrados = data.copy()
-
-    if filtro_municipio:
-        dados_filtrados = dados_filtrados[dados_filtrados["Município"] == filtro_municipio]
-    if filtro_uf:
-        dados_filtrados = dados_filtrados[dados_filtrados["UF"] == filtro_uf]
-
-    # Monta "resposta"
-    if not dados_filtrados.empty:
-        st.markdown("#### Resultado:")
-
-        if filtro_municipio:
-            st.markdown(f"**Filtro aplicado:** Município = {filtro_municipio}")
-        elif filtro_uf:
-            st.markdown(f"**Filtro aplicado:** UF = {filtro_uf}")
-
-        st.write(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio"]])
+    # Filtragem
+    if municipio and uf:
+        dados_filtrados = data[
+            (data["Município"] == municipio) & (data["UF"] == uf)
+        ]
         
-        # Download buttons
-        col1, col2 = st.columns(2)
-        with col1:
-            st.download_button(
-                label="📄 Baixar Relatório PDF",
-                data=gerar_pdf(dados_filtrados),
-                file_name="relatorio_novo_pac.pdf"
-            )
-        with col2:
-            st.download_button(
-                label="📊 Baixar Excel",
-                data=gerar_excel(dados_filtrados),
-                file_name="relatorio_novo_pac.xlsx"
-            )
+        if not dados_filtrados.empty:
+            st.markdown(f"**Filtro aplicado:** Município - `{municipio}` / UF - `{uf}`")
+            st.dataframe(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio", "Executor"]], use_container_width=True)
+            
+            # Botões de exportação
+            def gerar_pdf(df):
+                return df.to_csv(index=False).encode('utf-8')
+
+            def gerar_excel(df):
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Obras')
+                return output.getvalue()
+
+            st.download_button("📄 Baixar Relatório PDF", gerar_pdf(dados_filtrados), "relatorio.pdf")
+            st.download_button("📥 Baixar Excel", gerar_excel(dados_filtrados), "relatorio.xlsx")
+
+        else:
+            st.warning("Nenhum dado encontrado com base na sua pergunta.")
+
     else:
-        st.warning("Nenhum dado encontrado com base na sua pergunta.")
+        st.warning("Não consegui identificar o município e UF na sua pergunta.")
 
-    # Armazena no histórico
-    st.session_state.historico.append(pergunta)
+    # Armazenar histórico
+    st.session_state["historico"].append(pergunta)
 
-    # Pergunta de continuação
-    nova_pergunta = st.text_input("Tem mais alguma pergunta?", key="nova_pergunta")
-    if nova_pergunta:
-        st.session_state.historico.append(nova_pergunta)
-        st.rerun()
-
-# Histórico abaixo
-if st.session_state.historico:
+    # Caixa de nova pergunta (reexibe após resposta)
     st.markdown("---")
-    st.markdown("### 🕘 Histórico de Perguntas")
-    for item in st.session_state.historico:
+    st.subheader("🔁 Deseja continuar a conversa?")
+    st.rerun()
+
+# Histórico
+if st.session_state["historico"]:
+    st.markdown("### 🕓 Histórico de Perguntas")
+    for item in st.session_state["historico"]:
         st.markdown(f"- {item}")

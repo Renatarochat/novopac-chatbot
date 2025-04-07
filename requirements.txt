@@ -1,6 +1,5 @@
-openai
-pandas
 streamlit
+pandas
+openai>=1.0.0
 fpdf
-plotly
 xlsxwriter

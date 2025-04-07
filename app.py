@@ -1,11 +1,12 @@
 import streamlit as st
 import pandas as pd
 import openai
+from openai import OpenAI
 from fpdf import FPDF
 import json
 
 # Carregar chave da API
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Carrega os dados do Excel
 @st.cache_data
@@ -32,13 +33,14 @@ def get_bot_response(user_input):
     """
 
     try:
-        response = openai.ChatCompletion.create(
+        client = OpenAI()
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
         )
 
-        content = response["choices"][0]["message"]["content"]
+        content = response.choices[0].message.content
 
         resultado = json.loads(content)
 

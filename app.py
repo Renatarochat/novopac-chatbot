@@ -111,7 +111,7 @@ if pergunta:
 st.session_state["parametros_anteriores"] = parametros
 
 
-    dados_filtrados = data.copy()
+dados_filtrados = data.copy()
 
     if parametros["municipio"]:
         dados_filtrados = dados_filtrados[dados_filtrados["Município"].str.lower() == parametros["municipio"].lower()]

@@ -102,8 +102,6 @@ if pergunta:
 
     parametros = interpretar_pergunta(pergunta)
 
-    st.write("🧪 Parâmetros interpretados:", parametros)
-
     # Mapeamento de estados por nome para sigla
     mapa_estados = {
         "acre": "AC", "alagoas": "AL", "amapá": "AP", "amazonas": "AM", "bahia": "BA",

@@ -105,12 +105,10 @@ if pergunta:
     if dados_filtrados.empty:
         resposta = "Não encontrei empreendimentos com os critérios especificados."
     elif parametros["acao"] == "contar":
-        # Texto descritivo para o estágio (ex: "concluídos", "em execução", etc.)
         tipo_info = ""
         if parametros["estagio"]:
             tipo_info = f"{parametros['estagio'].lower()}s"
-        
-        # Texto para localização (ex: "na cidade de Belo Horizonte, MG")
+
         local_info = ""
         if parametros["municipio"]:
             local_info += f"na cidade de {parametros['municipio'].title()}"
@@ -119,14 +117,14 @@ if pergunta:
                 local_info += f", {parametros['uf'].upper()}"
             else:
                 local_info += f"no estado de {parametros['uf'].upper()}"
-        
+
         resposta = f"Foram encontrados **{len(dados_filtrados)} empreendimentos {tipo_info} {local_info}**."
-else:
-    resposta = f"Segue a lista de empreendimentos encontrados ({len(dados_filtrados)}):"
+    else:
+        resposta = f"Segue a lista de empreendimentos encontrados ({len(dados_filtrados)}):"
 
-st.markdown(f"**🤖 Resposta:** {resposta}")
+    st.markdown(f"**🤖 Resposta:** {resposta}")
 
-if not dados_filtrados.empty and parametros["acao"] == "listar":
-    st.dataframe(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio", "Executor"]])
+    if not dados_filtrados.empty and parametros["acao"] != "contar":
+        st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])
 
 st.session_state.historico.append({"role": "assistant", "content": resposta})

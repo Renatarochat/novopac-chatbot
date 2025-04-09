@@ -49,60 +49,60 @@ if "historico" not in st.session_state:
     st.session_state.historico = []
 
 # Função para interpretar pergunta
-    def interpretar_pergunta(pergunta):
-        system_prompt = """
-    Você é um assistente inteligente que ajuda a entender perguntas sobre uma base de dados do programa Novo PAC.
-    A planilha possui os campos: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
-    O campo "Estágio" pode conter: "Em ação preparatória", "Em licitação / leilão", "Em execução", "Concluído".
-    
-    Sua tarefa é retornar um JSON com os seguintes campos:
-    - municipio
-    - uf
-    - estagio (com base no significado do usuário: "entregues" = "Concluído", "em obras" = "Em execução", "não iniciados" = "Em ação preparatória")
-    - acao ("contar" ou "listar")
-    
-    Responda apenas com o JSON.
-        """
-    
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": pergunta}
-            ]
-        )
-    
-        try:
-            resposta_bruta = response.choices[0].message.content.strip()
-            parametros = eval(resposta_bruta)
-        except Exception:
-            parametros = {"municipio": None, "uf": None, "estagio": None, "acao": "listar"}
-    
-        # Normalização dos termos usados para estágio
-        mapa_estagios = {
-            "entregues": "Concluído",
-            "finalizados": "Concluído",
-            "concluído": "Concluído",
-            "em execução": "Em execução",
-            "em andamento": "Em execução",
-            "em obras": "Em execução",
-            "executando": "Em execução",
-            "em licitação": "Em licitação / leilão",
-            "em leilão": "Em licitação / leilão",
-            "licitando": "Em licitação / leilão",
-            "não iniciados": "Em ação preparatória",
-            "em planejamento": "Em ação preparatória",
-            "planejamento": "Em ação preparatória",
-            "pré-obra": "Em ação preparatória",
-        }
-    
-        estagio_user = parametros.get("estagio")
-        if estagio_user:
-            estagio_normalizado = mapa_estagios.get(estagio_user.strip().lower())
-            if estagio_normalizado:
-                parametros["estagio"] = estagio_normalizado
-    
-        return parametros
+def interpretar_pergunta(pergunta):
+    system_prompt = """
+Você é um assistente inteligente que ajuda a entender perguntas sobre uma base de dados do programa Novo PAC.
+A planilha possui os campos: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
+O campo "Estágio" pode conter: "Em ação preparatória", "Em licitação / leilão", "Em execução", "Concluído".
+
+Sua tarefa é retornar um JSON com os seguintes campos:
+- municipio
+- uf
+- estagio (com base no significado do usuário: "entregues" = "Concluído", "em obras" = "Em execução", "não iniciados" = "Em ação preparatória")
+- acao ("contar" ou "listar")
+
+Responda apenas com o JSON.
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": pergunta}
+        ]
+    )
+
+    try:
+        resposta_bruta = response.choices[0].message.content.strip()
+        parametros = eval(resposta_bruta)
+    except Exception:
+        parametros = {"municipio": None, "uf": None, "estagio": None, "acao": "listar"}
+
+    # Normalização dos termos usados para estágio
+    mapa_estagios = {
+        "entregues": "Concluído",
+        "finalizados": "Concluído",
+        "concluído": "Concluído",
+        "em execução": "Em execução",
+        "em andamento": "Em execução",
+        "em obras": "Em execução",
+        "executando": "Em execução",
+        "em licitação": "Em licitação / leilão",
+        "em leilão": "Em licitação / leilão",
+        "licitando": "Em licitação / leilão",
+        "não iniciados": "Em ação preparatória",
+        "em planejamento": "Em ação preparatória",
+        "planejamento": "Em ação preparatória",
+        "pré-obra": "Em ação preparatória",
+    }
+
+    estagio_user = parametros.get("estagio")
+    if estagio_user:
+        estagio_normalizado = mapa_estagios.get(estagio_user.strip().lower())
+        if estagio_normalizado:
+            parametros["estagio"] = estagio_normalizado
+
+    return parametros
 
 # Interface de pergunta
 pergunta = st.chat_input("Digite sua pergunta:")

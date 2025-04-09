@@ -145,5 +145,5 @@ if st.session_state.historico:
             st.markdown(f"**🤖 Assistente:** {msg['content']}")
 
     # Mostra a tabela apenas se for uma listagem
-    if not dados_filtrados.empty and parametros["acao"] != "contar":
+    if "dados_filtrados" in locals() and not dados_filtrados.empty and parametros["acao"] != "contar":
         st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])

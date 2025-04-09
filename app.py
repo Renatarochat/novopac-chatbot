@@ -109,7 +109,24 @@ if pergunta:
     else:
         resposta = f"Segue a lista de empreendimentos encontrados ({len(dados_filtrados)}):"
 
-    st.markdown(f"**🤖 Resposta:** {resposta}")
+    # Montar resposta personalizada
+tipo_info = ""
+if "estagio" in parametros and parametros["estagio"]:
+    tipo_info = f"{parametros['estagio'].lower()}s"
+
+local_info = ""
+if "municipio" in parametros and parametros["municipio"]:
+    local_info += f"na cidade de {parametros['municipio'].title()}"
+if "uf" in parametros and parametros["uf"]:
+    if local_info:
+        local_info += f", {parametros['uf']}"
+    else:
+        local_info += f"no estado de {parametros['uf']}"
+
+mensagem = f"Foram encontrados **{len(resultados)} empreendimentos {tipo_info} {local_info}**."
+
+st.markdown(f"**Resposta:** {mensagem}")
+
 
     if not dados_filtrados.empty and parametros["acao"] == "listar":
         st.dataframe(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio", "Executor"]])

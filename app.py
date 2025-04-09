@@ -18,7 +18,7 @@ data = carregar_dados()
 
 # Mostrar título e descrição
 col1, col2 = st.columns([1, 8])
-with col1:
+#with col1:
  #   st.image("logo.png", width=80)  # Substitua por sua logo
 with col2:
     st.markdown("### **Assistente virtual do NOVO PAC**")

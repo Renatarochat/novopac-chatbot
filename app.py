@@ -149,10 +149,9 @@ if pergunta:
         parametros["municipio"] = parametros_anteriores.get("municipio")
         parametros["uf"] = parametros_anteriores.get("uf")
 
-    # Herdar estágio e ação se não vierem
-    for chave in ["estagio", "acao"]:
-        if not parametros.get(chave):
-            parametros[chave] = parametros_anteriores.get(chave)
+    # Herda apenas a ação se não vier explicitamente (não herda estágio)
+    if not parametros.get("acao"):
+        parametros["acao"] = parametros_anteriores.get("acao")
 
     # Atualiza o contexto
     st.session_state["parametros_anteriores"] = parametros

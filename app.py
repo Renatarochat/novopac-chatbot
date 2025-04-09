@@ -126,7 +126,7 @@ else:
 
 st.markdown(f"**🤖 Resposta:** {resposta}")
 
-    if not dados_filtrados.empty and parametros["acao"] == "listar":
-        st.dataframe(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio", "Executor"]])
+if not dados_filtrados.empty and parametros["acao"] == "listar":
+    st.dataframe(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio", "Executor"]])
 
-    st.session_state.historico.append({"role": "assistant", "content": resposta})
+st.session_state.historico.append({"role": "assistant", "content": resposta})

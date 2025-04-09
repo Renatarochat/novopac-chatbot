@@ -124,6 +124,18 @@ if pergunta:
 
     st.markdown(f"**🤖 Resposta:** {resposta}")
 
+    # Armazena a resposta da IA no histórico
+st.session_state.historico.append({"role": "assistant", "content": resposta})
+
+# Exibe todo o histórico de conversa
+st.markdown("### 💬 Conversa")
+for msg in st.session_state.historico:
+    if msg["role"] == "user":
+        st.markdown(f"**🧑 Você:** {msg['content']}")
+    elif msg["role"] == "assistant":
+        st.markdown(f"**🤖 Assistente:** {msg['content']}")
+
+
     if not dados_filtrados.empty and parametros["acao"] != "contar":
         st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])
 

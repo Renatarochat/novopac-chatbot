@@ -137,14 +137,25 @@ if pergunta:
         uf_input_lower = uf_input.lower()
         parametros["uf"] = mapa_estados.get(uf_input_lower, uf_input).upper()
 
-    # Lógica de herança e limpeza de município/UF
-    if parametros.get("municipio"):
-        municipio = parametros["municipio"].lower()
+    # Lógica de atualização de município e UF conforme a pergunta
+    municipio = parametros.get("municipio")
+    uf = parametros.get("uf")
+    
+    # Se veio novo município, atualiza município e uf
+    if municipio:
+        municipio = municipio.lower()
+        parametros["municipio"] = municipio
         municipio_uf = data[data["Município"].str.lower() == municipio]["UF"].unique()
         if len(municipio_uf) >= 1:
             parametros["uf"] = municipio_uf[0]
-    elif parametros.get("uf"):
+    
+    # Se veio nova UF (e não veio município), limpa o município anterior
+    elif uf:
+        uf_input_lower = uf.lower()
+        parametros["uf"] = mapa_estados.get(uf_input_lower, uf).upper()
         parametros["municipio"] = None
+    
+    # Se não veio nem município nem UF, mantém os anteriores
     else:
         parametros["municipio"] = parametros_anteriores.get("municipio")
         parametros["uf"] = parametros_anteriores.get("uf")

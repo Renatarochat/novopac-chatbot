@@ -101,42 +101,41 @@ if pergunta:
     })
 
     parametros = interpretar_pergunta(pergunta)
-
+    
     # Mapeamento de estados por nome para sigla
-mapa_estados = {
-    "acre": "AC", "alagoas": "AL", "amapá": "AP", "amazonas": "AM", "bahia": "BA",
-    "ceará": "CE", "distrito federal": "DF", "espírito santo": "ES", "goiás": "GO",
-    "maranhão": "MA", "mato grosso": "MT", "mato grosso do sul": "MS", "minas gerais": "MG",
-    "pará": "PA", "paraíba": "PB", "paraná": "PR", "pernambuco": "PE", "piauí": "PI",
-    "rio de janeiro": "RJ", "rio grande do norte": "RN", "rio grande do sul": "RS",
-    "rondônia": "RO", "roraima": "RR", "santa catarina": "SC", "são paulo": "SP",
-    "sergipe": "SE", "tocantins": "TO"
-}
-
-# Converte nome para sigla se necessário
-uf_input = parametros.get("uf")
-if uf_input:
-    uf_input_lower = uf_input.lower()
-    parametros["uf"] = mapa_estados.get(uf_input_lower, uf_input).upper()
-
-
+    mapa_estados = {
+        "acre": "AC", "alagoas": "AL", "amapá": "AP", "amazonas": "AM", "bahia": "BA",
+        "ceará": "CE", "distrito federal": "DF", "espírito santo": "ES", "goiás": "GO",
+        "maranhão": "MA", "mato grosso": "MT", "mato grosso do sul": "MS", "minas gerais": "MG",
+        "pará": "PA", "paraíba": "PB", "paraná": "PR", "pernambuco": "PE", "piauí": "PI",
+        "rio de janeiro": "RJ", "rio grande do norte": "RN", "rio grande do sul": "RS",
+        "rondônia": "RO", "roraima": "RR", "santa catarina": "SC", "são paulo": "SP",
+        "sergipe": "SE", "tocantins": "TO"
+    }
+    
+    # Converte nome para sigla se necessário
+    uf_input = parametros.get("uf")
+    if uf_input:
+        uf_input_lower = uf_input.lower()
+        parametros["uf"] = mapa_estados.get(uf_input_lower, uf_input).upper()
+    
     # Se algum parâmetro não foi identificado na nova pergunta, usa o anterior
     for chave in ["municipio", "uf", "estagio", "acao"]:
         if not parametros.get(chave):
             parametros[chave] = parametros_anteriores.get(chave)
-
+    
     # Atualiza o contexto na sessão
     st.session_state["parametros_anteriores"] = parametros
-
+    
     dados_filtrados = data.copy()
-
+    
     if parametros["municipio"]:
         dados_filtrados = dados_filtrados[dados_filtrados["Município"].str.lower() == parametros["municipio"].lower()]
     if parametros["uf"]:
         dados_filtrados = dados_filtrados[dados_filtrados["UF"].str.lower() == parametros["uf"].lower()]
     if parametros["estagio"]:
         dados_filtrados = dados_filtrados[dados_filtrados["Estágio"].str.lower() == parametros["estagio"].lower()]
-
+    
     if dados_filtrados.empty:
         resposta = "Não encontrei empreendimentos com os critérios especificados."
     elif parametros["acao"] == "contar":
@@ -145,38 +144,38 @@ if uf_input:
             local = f"na cidade de {parametros['municipio'].title()}"
         elif parametros["uf"]:
             local = f"no estado de {parametros['uf'].upper()}"
-
+    
         estagio_desc = {
             "concluído": "entregues",
             "em execução": "em execução",
             "em licitação / leilão": "em licitação ou leilão",
             "em ação preparatória": "em fase preparatória"
         }
-
+    
         tipo_info = estagio_desc.get(parametros["estagio"].lower(), "com os critérios especificados") if parametros["estagio"] else "com os critérios especificados"
-
+    
         resposta = f"Foram encontrados **{len(dados_filtrados)} empreendimentos {tipo_info} {local}**.".strip()
-
+    
         st.markdown(f"**🤖 Resposta:** {resposta}")
         st.session_state.historico.append({"role": "assistant", "content": resposta})
-
+    
     else:
         resposta = f"Segue a lista de empreendimentos encontrados ({len(dados_filtrados)}):"
         st.markdown(f"**🤖 Resposta:** {resposta}")
-
+    
         if not dados_filtrados.empty and parametros["acao"] != "contar":
             st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])
             st.session_state.historico.append({"role": "assistant", "content": resposta})
-
-# Exibe histórico da conversa durante a sessão (sem repetir perguntas anteriores)
-if st.session_state.historico:
-    st.markdown("### 💬 Conversa")
-    for msg in st.session_state.historico:
-        if msg["role"] == "user":
-            st.markdown(f"**🧑 Você:** {msg['content']}")
-        elif msg["role"] == "assistant":
-            st.markdown(f"**🤖 Assistente:** {msg['content']}")
-
-    # Mostra a tabela apenas se for uma listagem
-    if "dados_filtrados" in locals() and not dados_filtrados.empty and parametros["acao"] != "contar":
-        st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])
+    
+    # Exibe histórico da conversa durante a sessão (sem repetir perguntas anteriores)
+    if st.session_state.historico:
+        st.markdown("### 💬 Conversa")
+        for msg in st.session_state.historico:
+            if msg["role"] == "user":
+                st.markdown(f"**🧑 Você:** {msg['content']}")
+            elif msg["role"] == "assistant":
+                st.markdown(f"**🤖 Assistente:** {msg['content']}")
+    
+        # Mostra a tabela apenas se for uma listagem
+        if "dados_filtrados" in locals() and not dados_filtrados.empty and parametros["acao"] != "contar":
+            st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])

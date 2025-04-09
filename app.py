@@ -92,26 +92,26 @@ pergunta = st.chat_input("Digite sua pergunta:")
 if pergunta:
     st.session_state.historico.append({"role": "user", "content": pergunta})
 
-    # Recupera contexto anterior, se existir
-    parametros_anteriores = st.session_state.get("parametros_anteriores", {
-        "municipio": None,
-        "uf": None,
-        "estagio": None,
-        "acao": None
-    })
+ # Recupera contexto anterior, se existir
+parametros_anteriores = st.session_state.get("parametros_anteriores", {
+    "municipio": None,
+    "uf": None,
+    "estagio": None,
+    "acao": None
+})
 
     parametros = interpretar_pergunta(pergunta)
 
 # Se algum parâmetro não foi identificado na nova pergunta, usa o anterior
-    for chave in ["municipio", "uf", "estagio", "acao"]:
-        if not parametros.get(chave):
-            parametros[chave] = parametros_anteriores.get(chave)
+for chave in ["municipio", "uf", "estagio", "acao"]:
+    if not parametros.get(chave):
+        parametros[chave] = parametros_anteriores.get(chave)
 
 # Atualiza o contexto na sessão
 st.session_state["parametros_anteriores"] = parametros
 
 
-dados_filtrados = data.copy()
+    dados_filtrados = data.copy()
 
     if parametros["municipio"]:
         dados_filtrados = dados_filtrados[dados_filtrados["Município"].str.lower() == parametros["municipio"].lower()]

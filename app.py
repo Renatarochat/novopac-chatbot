@@ -105,28 +105,26 @@ if pergunta:
     if dados_filtrados.empty:
         resposta = "Não encontrei empreendimentos com os critérios especificados."
     elif parametros["acao"] == "contar":
-        resposta = f"Foram encontrados **{len(dados_filtrados)} empreendimentos** com os critérios especificados."
-    else:
-        resposta = f"Segue a lista de empreendimentos encontrados ({len(dados_filtrados)}):"
+    # Texto descritivo para o estágio (ex: "concluídos", "em execução", etc.)
+    tipo_info = ""
+    if parametros["estagio"]:
+        tipo_info = f"{parametros['estagio'].lower()}s"
+    
+    # Texto para localização (ex: "na cidade de Belo Horizonte, MG")
+    local_info = ""
+    if parametros["municipio"]:
+        local_info += f"na cidade de {parametros['municipio'].title()}"
+    if parametros["uf"]:
+        if local_info:
+            local_info += f", {parametros['uf'].upper()}"
+        else:
+            local_info += f"no estado de {parametros['uf'].upper()}"
+    
+    resposta = f"Foram encontrados **{len(dados_filtrados)} empreendimentos {tipo_info} {local_info}**."
+else:
+    resposta = f"Segue a lista de empreendimentos encontrados ({len(dados_filtrados)}):"
 
-    # Montar resposta personalizada
-tipo_info = ""
-if "estagio" in parametros and parametros["estagio"]:
-    tipo_info = f"{parametros['estagio'].lower()}s"
-
-local_info = ""
-if "municipio" in parametros and parametros["municipio"]:
-    local_info += f"na cidade de {parametros['municipio'].title()}"
-if "uf" in parametros and parametros["uf"]:
-    if local_info:
-        local_info += f", {parametros['uf']}"
-    else:
-        local_info += f"no estado de {parametros['uf']}"
-
-mensagem = f"Foram encontrados **{len(resultados)} empreendimentos {tipo_info} {local_info}**."
-
-st.markdown(f"**Resposta:** {mensagem}")
-
+st.markdown(f"**🤖 Resposta:** {resposta}")
 
     if not dados_filtrados.empty and parametros["acao"] == "listar":
         st.dataframe(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio", "Executor"]])

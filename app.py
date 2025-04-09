@@ -143,7 +143,7 @@ if st.session_state.historico:
             st.markdown(f"**🤖 Assistente:** {msg['content']}")
 
 
-    if not dados_filtrados.empty and parametros["acao"] != "contar":
+if not dados_filtrados.empty and parametros["acao"] != "contar":
         st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])
 
         st.session_state.historico.append({"role": "assistant", "content": resposta})

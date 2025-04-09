@@ -63,10 +63,11 @@ Sua tarefa é retornar um JSON com os seguintes campos:
 - estagio (apenas se o usuário mencionou diretamente algo como: 'em obras', 'em execução', 'entregues', 'não iniciados' etc. — **não tente adivinhar o estágio**)
 - acao ("contar" ou "listar")
 
-Se o usuário **não mencionar** o estágio, deixe o campo `"estagio"` como `null`.
+Se o usuário **não mencionar** o estágio, deixe o campo "estagio" como null.
 
 Responda apenas com o JSON.
 """
+
 
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -144,23 +145,26 @@ if pergunta:
     # Limpeza de contexto: se UF nova for fornecida, limpe o município anterior
     if parametros.get("uf") and not parametros.get("municipio"):
         parametros["municipio"] = None
-
+    
     # Se município for informado, atualiza a UF com base no dado
     if parametros.get("municipio"):
         municipio = parametros["municipio"].lower()
         municipio_uf = data[data["Município"].str.lower() == municipio]["UF"].unique()
         if len(municipio_uf) >= 1:
             parametros["uf"] = municipio_uf[0]
-
-    # Herança condicional
+    
+    # Herdar apenas o que não foi informado E não conflita
     for chave in ["municipio", "uf", "estagio", "acao"]:
         if not parametros.get(chave):
             parametros[chave] = parametros_anteriores.get(chave)
 
-    # Herança de estágio: só se a pergunta parecer continuação E não especificar novo município ou UF
-    continua_conversa = pergunta.lower().startswith(("e ", "e no ", "e na ", "e em "))
-    herdar_estagio = continua_conversa and not (parametros.get("municipio") or parametros.get("uf"))
-
+        # Só herda o estágio se a nova pergunta for genérica (ex: "e no estado tal?")
+    herdar_estagio = pergunta.lower().startswith("e ") or pergunta.lower().startswith("e no ")
+    
+    for chave in ["acao"]:
+        if not parametros.get(chave):
+            parametros[chave] = parametros_anteriores.get(chave)
+    
     if not parametros.get("estagio") and herdar_estagio:
         parametros["estagio"] = parametros_anteriores.get("estagio")
 
@@ -214,5 +218,6 @@ if st.session_state.historico:
         elif msg["role"] == "assistant":
             st.markdown(f"**🤖 Assistente:** {msg['content']}")
 
+    # Tabela final (evita repetição da listagem acima)
     if "dados_filtrados" in locals() and not dados_filtrados.empty and parametros["acao"] != "contar":
         st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])

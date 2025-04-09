@@ -8,19 +8,33 @@ import re
 # Inicialização da OpenAI com nova sintaxe
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Página inicial
-st.set_page_config(page_title="Assistente Novo PAC")
-st.image("logo.png", width=80)
+# Configurar a página
+st.set_page_config(page_title="Assistente do Novo PAC", layout="wide")
 
-st.markdown("## **Assistente virtual do NOVO PAC**")
-st.markdown(
-    "O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. "
-    "Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais."
-)
+# Layout do cabeçalho
+col1, col2 = st.columns([1, 6])
+
+with col1:
+    st.image("logo.png", width=90)
+
+with col2:
+    st.markdown("<h1 style='margin-bottom: 0; color: #004080;'>Assistente Virtual do <strong>NOVO PAC</strong></h1>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 18px; margin-top: 0;'>Tire dúvidas sobre obras e empreendimentos do Novo PAC em todo o Brasil.</p>", unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown("### O que você quer saber sobre o Novo PAC?")
-st.markdown("*Quantos empreendimentos tem na sua cidade ou seu estado? Quantos empreendimentos já foram entregues? Digite a sua pergunta:*")
+
+# Descrição destacada
+st.markdown("""
+<div style='background-color: #f0f4f8; padding: 15px; border-radius: 10px;'>
+<p style='font-size:16px; margin: 0'>
+O <strong>Novo PAC</strong> é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. 
+Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.
+</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("### 📝 O que você quer saber sobre o Novo PAC?")
+st.markdown("*Quantos empreendimentos tem na sua cidade ou seu estado? Quantos já foram entregues? Digite sua pergunta abaixo:*")
 
 # Carregar dados
 @st.cache_data

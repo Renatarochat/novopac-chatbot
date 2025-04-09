@@ -1,130 +1,117 @@
 import streamlit as st
 import pandas as pd
-import openai
 from openai import OpenAI
-from fpdf import FPDF
 import json
-from io import BytesIO
 
-# API OpenAI
+# Configuração da página
+st.set_page_config(page_title="Assistente virtual do NOVO PAC")
+
+# Chave da API
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Carrega os dados do Excel
+# Carregar os dados
 @st.cache_data
 def carregar_dados():
     return pd.read_excel("novopac.xlsx")
 
 data = carregar_dados()
 
-# Inicializa histórico de conversa
-if "historico" not in st.session_state:
-    st.session_state.historico = []
+# Mostrar título e descrição
+col1, col2 = st.columns([1, 8])
+with col1:
+    st.image("logo.png", width=80)  # Substitua por sua logo
+with col2:
+    st.markdown("### **Assistente virtual do NOVO PAC**")
 
-# Função para gerar resposta do chatbot
-def get_bot_response(user_input):
-    prompt_inicial = """
-    Você é um assistente que responde sobre empreendimentos do NOVO PAC com base em uma tabela.
+st.markdown("""
+O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.
+""")
 
-    Extraia da frase abaixo o ESTADO (UF) ou o MUNICÍPIO. Se a pergunta for para gerar um relatório geral, retorne tipo "relatorio".
+st.markdown("#### O que você quer saber sobre o Novo PAC?")
+st.markdown("Quantos empreendimentos tem na sua cidade ou seu estado? Quantos empreendimentos já foram entregues? Digite a sua pergunta:")
 
-    Responda somente neste formato JSON, sem explicações:
+# Inicializar histórico
+if "mensagens" not in st.session_state:
+    st.session_state.mensagens = []
 
-    {
-      "tipo": "estado" ou "municipio" ou "relatorio",
-      "valor": "nome extraído"
-    }
-    """
+# Função de interpretação via OpenAI
+def interpretar_pergunta(pergunta, historico):
+    prompt = f"""
+Você é um assistente de dados do Novo PAC. Baseando-se em perguntas como:
 
-    try:
-        # Adiciona pergunta atual ao histórico
-        st.session_state.historico.append({"role": "user", "content": user_input})
+- "Quantos empreendimentos têm em Belo Horizonte?"
+- "Quais foram entregues em SP?"
+- "Me mostre os empreendimentos em Montes Claros"
 
-        mensagens = [{"role": "system", "content": prompt_inicial}]
-        mensagens += st.session_state.historico[-5:]  # Usa últimas 5 trocas
+Identifique a intenção do usuário e devolva um JSON com:
 
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=mensagens,
-            temperature=0.2,
-        )
+- tipo: "listar", "contar", ou "desconhecido"
+- filtro: "municipio" ou "estado"
+- valor: nome do estado ou município
+- estagio (opcional): se ele pedir por estágio como "entregue", "em andamento" etc.
 
-        content = response.choices[0].message.content.strip()
+Formato de saída:
+{{
+  "tipo": "listar" | "contar" | "desconhecido",
+  "filtro": "estado" | "municipio",
+  "valor": "Minas Gerais",
+  "estagio": "Concluída" (opcional)
+}}
 
-        if content.startswith("{") and content.endswith("}"):
-            resultado = json.loads(content)
-        else:
-            return "Erro: Resposta fora do formato esperado."
+Histórico da conversa:
+{json.dumps(historico[-5:])}
 
-        if resultado.get("tipo") == "relatorio":
-            return "GERAR_RELATORIO"
+Pergunta: "{pergunta}"
+"""
 
-        return resultado
+    resposta = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0
+    )
 
-    except Exception as e:
-        return f"Erro ao consultar OpenAI: {str(e)}"
+    return json.loads(resposta.choices[0].message.content)
 
-# Gera relatório PDF
-def gerar_relatorio_pdf(filtro_tipo, filtro_valor, dados_filtrados):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt="Relatório de Empreendimentos - NOVO PAC", ln=True, align="C")
-    pdf.ln(10)
-    pdf.cell(200, 10, txt=f"Filtro: {filtro_tipo.title()} - {filtro_valor}", ln=True)
-    pdf.cell(200, 10, txt=f"Total de empreendimentos: {len(dados_filtrados)}", ln=True)
-    pdf.ln(10)
+# Função para processar a pergunta
+def responder(pergunta):
+    st.session_state.mensagens.append({"role": "user", "content": pergunta})
+    interpretado = interpretar_pergunta(pergunta, st.session_state.mensagens)
 
-    for _, row in dados_filtrados.iterrows():
-        linha = f"{row['Município']} - {row['UF']}: {row['Empreendimento']} | {row['Executor']} | Estágio: {row['Estágio']}"
-        pdf.multi_cell(0, 10, txt=linha)
+    tipo = interpretado.get("tipo")
+    filtro = interpretado.get("filtro")
+    valor = interpretado.get("valor")
+    estagio = interpretado.get("estagio")
 
-    pdf.output("relatorio.pdf")
-    with open("relatorio.pdf", "rb") as file:
-        st.download_button("📥 Baixar PDF", file, file_name="relatorio.pdf")
+    df = data.copy()
 
-# Gera Excel
-def gerar_excel(dados_filtrados):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        dados_filtrados.to_excel(writer, index=False, sheet_name="Empreendimentos")
-    output.seek(0)
-    st.download_button("📥 Baixar Excel", output, file_name="relatorio.xlsx")
+    # Aplicar filtros
+    if filtro == "estado":
+        df = df[df["UF"].str.lower() == valor.lower()]
+    elif filtro == "municipio":
+        df = df[df["Município"].str.lower() == valor.lower()]
 
-# Interface inicial
-st.markdown("## Assistente virtual do NOVO PAC")
-user_input = st.chat_input(
-    "O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. "
-    "Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.\n\n"
-    "**Digite sua pergunta para obter mais informações sobre os empreendimentos no Estado ou na sua Cidade:**"
-)
+    if estagio:
+        df = df[df["Estágio"].str.contains(estagio, case=False, na=False)]
 
-if user_input:
-    resposta = get_bot_response(user_input)
+    # Geração da resposta
+    if df.empty:
+        resposta_texto = "Nenhum empreendimento encontrado com esses critérios."
+    elif tipo == "contar":
+        resposta_texto = f"🔎 Foram encontrados **{len(df)}** empreendimentos para **{valor}**."
+    elif tipo == "listar":
+        resposta_texto = f"🔎 Lista de empreendimentos encontrados em **{valor}**:"
+    else:
+        resposta_texto = "Desculpe, não entendi exatamente a sua pergunta. Tente reformular."
 
-    if isinstance(resposta, str) and resposta.startswith("Erro"):
-        st.warning(resposta)
+    st.session_state.mensagens.append({"role": "assistant", "content": resposta_texto})
+    st.markdown(resposta_texto)
 
-    elif resposta == "GERAR_RELATORIO":
-        st.info("🔄 Gerando relatório completo...")
-        gerar_excel(data)
-        gerar_relatorio_pdf("geral", "Todos", data)
+    # Mostrar tabela se tipo for listar
+    if tipo == "listar" and not df.empty:
+        st.dataframe(df[["Empreendimento", "Estágio", "Executor"]].reset_index(drop=True))
 
-    elif isinstance(resposta, dict):
-        tipo = resposta.get("tipo")
-        valor = resposta.get("valor")
+# Entrada de texto interativa
+pergunta = st.chat_input("Digite sua pergunta sobre os empreendimentos do Novo PAC")
 
-        st.markdown(f"🔍 **Filtro identificado**: **{tipo.title()}** - `{valor}`")
-
-        if tipo == "estado":
-            dados_filtrados = data[data["UF"].str.upper() == valor.upper()]
-        elif tipo == "municipio":
-            dados_filtrados = data[data["Município"].str.lower() == valor.lower()]
-        else:
-            dados_filtrados = pd.DataFrame()
-
-        if not dados_filtrados.empty:
-            st.write(dados_filtrados[["Município", "UF", "Empreendimento", "Executor", "Estágio"]])
-            gerar_excel(dados_filtrados)
-            gerar_relatorio_pdf(tipo, valor, dados_filtrados)
-        else:
-            st.warning("Nenhum empreendimento encontrado para esse filtro.")
+if pergunta:
+    responder(pergunta)

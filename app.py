@@ -15,7 +15,7 @@ st.set_page_config(page_title="Assistente do Novo PAC", layout="wide")
 col1, col2 = st.columns([1, 6])
 
 with col1:
-    st.image("logo.png", width=180)
+    st.image("logo.png", width=300)
 
 with col2:
     st.markdown("<h1 style='margin-bottom: 0; color: #004080;'>Assistente Virtual do <strong>NOVO PAC</strong></h1>", unsafe_allow_html=True)

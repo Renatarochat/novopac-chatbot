@@ -92,14 +92,13 @@ pergunta = st.chat_input("Digite sua pergunta:")
 if pergunta:
     st.session_state.historico.append({"role": "user", "content": pergunta})
 
-    # Recupera contexto anterior, se existir
+    # Recupera contexto anterior
     parametros_anteriores = st.session_state.get("parametros_anteriores", {
         "municipio": None,
         "uf": None,
         "estagio": None,
         "acao": None
     })
-
     parametros = interpretar_pergunta(pergunta)
 
     # Mapeamento de estados por nome para sigla
@@ -119,25 +118,32 @@ if pergunta:
         uf_input_lower = uf_input.lower()
         parametros["uf"] = mapa_estados.get(uf_input_lower, uf_input).upper()
 
-    # Aplica lógica de herança contextual com coerência
-    # Ex: se veio UF nova, limpa município anterior que não bate com a nova UF
-    if not parametros.get("municipio"):
-        parametros["municipio"] = parametros_anteriores.get("municipio")
+    # Aplicando a lógica desejada
+    if parametros.get("municipio"):
+        municipio = parametros["municipio"].lower()
+        municipio_uf = data[data["Município"].str.lower() == municipio]["UF"].unique()
     
-    if not parametros.get("uf"):
-        parametros["uf"] = parametros_anteriores.get("uf")
-    else:
-        # Se veio uma nova UF, limpamos o município anterior (potencialmente incompatível)
+        # Se encontrarmos a UF correspondente ao município, usamos
+        if len(municipio_uf) == 1:
+            parametros["uf"] = municipio_uf[0]
+        elif len(municipio_uf) > 1:
+            parametros["uf"] = municipio_uf[0]  # Pega a primeira se houver mais de uma
+    
+    elif parametros.get("uf"):
+        # Se só veio nova UF, limpa o município anterior
         parametros["municipio"] = None
     
-    if not parametros.get("estagio"):
-        parametros["estagio"] = parametros_anteriores.get("estagio")
+    else:
+        # Nenhum novo município ou UF, mantém ambos os anteriores
+        parametros["municipio"] = parametros_anteriores.get("municipio")
+        parametros["uf"] = parametros_anteriores.get("uf")
     
-    if not parametros.get("acao"):
-        parametros["acao"] = parametros_anteriores.get("acao")
-
+    # Herdar estágio e ação se não vierem
+    for chave in ["estagio", "acao"]:
+        if not parametros.get(chave):
+            parametros[chave] = parametros_anteriores.get(chave)
     
-    # Atualiza o contexto na sessão
+    # Atualiza o contexto
     st.session_state["parametros_anteriores"] = parametros
     
     dados_filtrados = data.copy()

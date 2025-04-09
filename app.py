@@ -105,22 +105,22 @@ if pergunta:
     if dados_filtrados.empty:
         resposta = "Não encontrei empreendimentos com os critérios especificados."
     elif parametros["acao"] == "contar":
-    # Texto descritivo para o estágio (ex: "concluídos", "em execução", etc.)
-    tipo_info = ""
-    if parametros["estagio"]:
-        tipo_info = f"{parametros['estagio'].lower()}s"
-    
-    # Texto para localização (ex: "na cidade de Belo Horizonte, MG")
-    local_info = ""
-    if parametros["municipio"]:
-        local_info += f"na cidade de {parametros['municipio'].title()}"
-    if parametros["uf"]:
-        if local_info:
-            local_info += f", {parametros['uf'].upper()}"
-        else:
-            local_info += f"no estado de {parametros['uf'].upper()}"
-    
-    resposta = f"Foram encontrados **{len(dados_filtrados)} empreendimentos {tipo_info} {local_info}**."
+        # Texto descritivo para o estágio (ex: "concluídos", "em execução", etc.)
+        tipo_info = ""
+        if parametros["estagio"]:
+            tipo_info = f"{parametros['estagio'].lower()}s"
+        
+        # Texto para localização (ex: "na cidade de Belo Horizonte, MG")
+        local_info = ""
+        if parametros["municipio"]:
+            local_info += f"na cidade de {parametros['municipio'].title()}"
+        if parametros["uf"]:
+            if local_info:
+                local_info += f", {parametros['uf'].upper()}"
+            else:
+                local_info += f"no estado de {parametros['uf'].upper()}"
+        
+        resposta = f"Foram encontrados **{len(dados_filtrados)} empreendimentos {tipo_info} {local_info}**."
 else:
     resposta = f"Segue a lista de empreendimentos encontrados ({len(dados_filtrados)}):"
 

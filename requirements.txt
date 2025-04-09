@@ -1,6 +1,6 @@
-streamlit
-pandas
-openpyxl
-xlsxwriter
-fpdf
-openai
+streamlit>=1.30.0
+pandas>=2.1.0
+openpyxl>=3.1.2
+xlsxwriter>=3.1.2
+fpdf>=1.7.2
+openai>=1.3.5

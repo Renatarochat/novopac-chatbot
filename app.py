@@ -51,18 +51,23 @@ if "historico" not in st.session_state:
 # Função para interpretar pergunta
 def interpretar_pergunta(pergunta):
     system_prompt = """
-Você é um assistente inteligente que ajuda a entender perguntas sobre uma base de dados do programa Novo PAC.
-A planilha possui os campos: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
+Você é um assistente que extrai parâmetros de perguntas sobre uma base de dados do programa Novo PAC.
+
+A planilha contém os campos: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
+
 O campo "Estágio" pode conter: "Em ação preparatória", "Em licitação / leilão", "Em execução", "Concluído".
 
 Sua tarefa é retornar um JSON com os seguintes campos:
 - municipio
 - uf
-- estagio (com base no significado do usuário: "entregues" = "Concluído", "em obras" = "Em execução", "não iniciados" = "Em ação preparatória")
+- estagio (apenas se o usuário mencionou diretamente algo como: 'em obras', 'em execução', 'entregues', 'não iniciados' etc. — **não tente adivinhar o estágio**)
 - acao ("contar" ou "listar")
 
+Se o usuário **não mencionar** o estágio, deixe o campo `"estagio"` como `null`.
+
 Responda apenas com o JSON.
-    """
+"""
+
 
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -152,6 +157,16 @@ if pergunta:
     for chave in ["municipio", "uf", "estagio", "acao"]:
         if not parametros.get(chave):
             parametros[chave] = parametros_anteriores.get(chave)
+
+        # Só herda o estágio se a nova pergunta for genérica (ex: "e no estado tal?")
+    herdar_estagio = pergunta.lower().startswith("e ") or pergunta.lower().startswith("e no ")
+    
+    for chave in ["acao"]:
+        if not parametros.get(chave):
+            parametros[chave] = parametros_anteriores.get(chave)
+    
+    if not parametros.get("estagio") and herdar_estagio:
+        parametros["estagio"] = parametros_anteriores.get("estagio")
 
     # Atualiza o contexto
     st.session_state["parametros_anteriores"] = parametros

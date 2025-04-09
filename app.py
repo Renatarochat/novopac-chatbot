@@ -100,7 +100,7 @@ parametros_anteriores = st.session_state.get("parametros_anteriores", {
     "acao": None
 })
 
-    parametros = interpretar_pergunta(pergunta)
+parametros = interpretar_pergunta(pergunta)
 
 # Se algum parâmetro não foi identificado na nova pergunta, usa o anterior
 for chave in ["municipio", "uf", "estagio", "acao"]:

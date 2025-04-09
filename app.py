@@ -121,10 +121,23 @@ if pergunta:
         uf_input_lower = uf_input.lower()
         parametros["uf"] = mapa_estados.get(uf_input_lower, uf_input).upper()
 
-    # Se algum parâmetro não foi identificado na nova pergunta, usa o anterior
-    for chave in ["municipio", "uf", "estagio", "acao"]:
-        if not parametros.get(chave):
-            parametros[chave] = parametros_anteriores.get(chave)
+    # Aplica lógica de herança contextual com coerência
+    # Ex: se veio UF nova, limpa município anterior que não bate com a nova UF
+    if not parametros.get("municipio"):
+        parametros["municipio"] = parametros_anteriores.get("municipio")
+    
+    if not parametros.get("uf"):
+        parametros["uf"] = parametros_anteriores.get("uf")
+    else:
+        # Se veio uma nova UF, limpamos o município anterior (potencialmente incompatível)
+        parametros["municipio"] = None
+    
+    if not parametros.get("estagio"):
+        parametros["estagio"] = parametros_anteriores.get("estagio")
+    
+    if not parametros.get("acao"):
+        parametros["acao"] = parametros_anteriores.get("acao")
+
     
     # Atualiza o contexto na sessão
     st.session_state["parametros_anteriores"] = parametros

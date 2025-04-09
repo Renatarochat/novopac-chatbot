@@ -105,35 +105,42 @@ if pergunta:
     if dados_filtrados.empty:
         resposta = "Não encontrei empreendimentos com os critérios especificados."
     elif parametros["acao"] == "contar":
-        tipo_info = ""
-        if parametros["estagio"]:
-            tipo_info = f"{parametros['estagio'].lower()}s"
-
-        local_info = ""
+        local = ""
         if parametros["municipio"]:
-            local_info += f"na cidade de {parametros['municipio'].title()}"
-        if parametros["uf"]:
-            if local_info:
-                local_info += f", {parametros['uf'].upper()}"
-            else:
-                local_info += f"no estado de {parametros['uf'].upper()}"
+            local = f"na cidade de {parametros['municipio'].title()}"
+        elif parametros["uf"]:
+            local = f"no estado de {parametros['uf'].upper()}"
 
-        resposta = f"Foram encontrados **{len(dados_filtrados)} empreendimentos {tipo_info} {local_info}**."
+        estagio_desc = {
+            "concluído": "entregues",
+            "em execução": "em execução",
+            "em licitação / leilão": "em licitação ou leilão",
+            "em ação preparatória": "em fase preparatória"
+        }
+        tipo_info = estagio_desc.get(parametros["estagio"].lower(), "com os critérios especificados") if parametros["estagio"] else "com os critérios especificados"
+
+        resposta = f"Foram encontrados **{len(dados_filtrados)} empreendimentos {tipo_info} {local}**.".strip()
     else:
         resposta = f"Segue a lista de empreendimentos encontrados ({len(dados_filtrados)}):"
 
+    # ✅ Agora sim: adiciona a resposta no histórico
+    st.session_state.historico.append({"role": "assistant", "content": resposta})
+
+    # ✅ Exibe a resposta formatada
     st.markdown(f"**🤖 Resposta:** {resposta}")
 
-    # Armazena a resposta da IA no histórico
-st.session_state.historico.append({"role": "assistant", "content": resposta})
+    # ✅ Se for lista, mostra a tabela
+    if parametros["acao"] != "contar" and not dados_filtrados.empty:
+        st.dataframe(dados_filtrados[["Município", "UF", "Empreendimento", "Estágio", "Executor"]])
 
-# Exibe todo o histórico de conversa
-st.markdown("### 💬 Conversa")
-for msg in st.session_state.historico:
-    if msg["role"] == "user":
-        st.markdown(f"**🧑 Você:** {msg['content']}")
-    elif msg["role"] == "assistant":
-        st.markdown(f"**🤖 Assistente:** {msg['content']}")
+# ✅ Exibe o histórico completo da conversa
+if st.session_state.historico:
+    st.markdown("### 💬 Conversa")
+    for msg in st.session_state.historico:
+        if msg["role"] == "user":
+            st.markdown(f"**🧑 Você:** {msg['content']}")
+        elif msg["role"] == "assistant":
+            st.markdown(f"**🤖 Assistente:** {msg['content']}")
 
 
     if not dados_filtrados.empty and parametros["acao"] != "contar":

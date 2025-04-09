@@ -1,51 +1,19 @@
 import streamlit as st
 import pandas as pd
 import openai
+import os
 
 # Configurações da página
 st.set_page_config(page_title="Assistente virtual do NOVO PAC", layout="wide")
 
-# Carregar dados
-@st.cache_data
-def carregar_dados():
-    return pd.read_excel("novopac.xlsx")
-
-df = carregar_dados()
-
-# Dicionário de sinônimos para o estágio
-estagios_sinonimos = {
-    "concluído": ["concluído", "finalizado", "entregue", "entregues", "pronto", "prontos"],
-    "em execução": ["em execução", "andamento", "executando", "fazendo"],
-    "em licitação / leilão": ["em licitação", "em leilão", "licitando", "leiloando"],
-    "em ação preparatória": ["ação preparatória", "planejamento", "preparação", "não iniciado", "parado", "paralisado"]
-}
-
-# Função para mapear palavras-chave da pergunta para estágio
-def identificar_estagio(pergunta):
-    pergunta = pergunta.lower()
-    for estagio, palavras in estagios_sinonimos.items():
-        for palavra in palavras:
-            if palavra in pergunta:
-                return estagio
-    return None
-
-# Extrair município ou estado da pergunta
-def extrair_local(pergunta):
-    for uf in df['UF'].unique():
-        if uf.lower() in pergunta.lower():
-            return None, uf.upper()
-    for municipio in df['Município'].unique():
-        if municipio.lower() in pergunta.lower():
-            return municipio, None
-    return None, None
-
-# Interface
+# Logo + Título
 col1, col2 = st.columns([0.1, 0.9])
 with col1:
     st.image("logo.png", width=80)
 with col2:
     st.markdown("## **Assistente virtual do NOVO PAC**")
 
+# Descrição
 st.write("""
 O Novo PAC é um programa de investimentos coordenado pelo governo federal, em parceria com o setor privado, estados, municípios e movimentos sociais. 
 Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão social, gerando emprego e renda, e reduzindo desigualdades sociais e regionais.
@@ -54,37 +22,81 @@ Todo o esforço conjunto é para acelerar o crescimento econômico e a inclusão
 st.markdown("### O que você quer saber sobre o Novo PAC?")
 st.write("Quantos empreendimentos tem na sua cidade ou seu estado? Quantos empreendimentos já foram entregues? Digite a sua pergunta:")
 
-# Inicializa histórico
+# Carregar dados
+@st.cache_data
+def carregar_dados():
+    return pd.read_excel("novopac.xlsx")
+
+df = carregar_dados()
+
+# Inicializa histórico da conversa
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
-# Entrada do usuário
+# Função para interpretar pergunta usando GPT
+def interpretar_pergunta(pergunta):
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+
+    prompt = f"""
+Você é um assistente que ajuda a filtrar dados de uma planilha de empreendimentos do governo chamada Novo PAC. 
+A planilha tem as colunas: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
+
+O usuário fará perguntas como: 
+- "Quantos empreendimentos foram entregues em Belo Horizonte?"
+- "Quais empreendimentos estão em andamento no Ceará?"
+- "Quero ver a lista de obras concluídas no Rio de Janeiro."
+
+Com base na pergunta abaixo, identifique:
+
+1. Ação: "listar" ou "contar"
+2. Município (se houver)
+3. UF (se houver)
+4. Estágio desejado (Ex: "Concluído", "Em execução", etc.)
+
+Retorne apenas um JSON com os campos: acao, municipio, uf, estagio.
+
+Pergunta: \"{pergunta}\"
+"""
+
+    resposta = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "system", "content": "Você é um assistente de análise de dados."},
+                  {"role": "user", "content": prompt}]
+    )
+
+    import json
+    import re
+
+    texto = resposta.choices[0].message['content']
+    try:
+        json_str = re.search(r"\{.*\}", texto, re.DOTALL).group()
+        return json.loads(json_str)
+    except:
+        return {"acao": "listar", "municipio": None, "uf": None, "estagio": None}
+
+# Caixa de entrada do usuário
 pergunta = st.chat_input("Digite sua pergunta aqui:")
 
 if pergunta:
     st.session_state.historico.append({"usuario": pergunta})
 
-    # Identificação dos parâmetros
-    municipio, uf = extrair_local(pergunta)
-    estagio = identificar_estagio(pergunta)
+    parametros = interpretar_pergunta(pergunta)
 
     resultado = df.copy()
 
-    if municipio:
-        resultado = resultado[resultado["Município"].str.lower() == municipio.lower()]
-    elif uf:
-        resultado = resultado[resultado["UF"].str.lower() == uf.lower()]
+    if parametros["municipio"]:
+        resultado = resultado[resultado["Município"].str.lower() == parametros["municipio"].lower()]
+    if parametros["uf"]:
+        resultado = resultado[resultado["UF"].str.lower() == parametros["uf"].lower()]
+    if parametros["estagio"]:
+        resultado = resultado[resultado["Estágio"].str.lower() == parametros["estagio"].lower()]
 
-    if estagio:
-        resultado = resultado[resultado["Estágio"].str.lower() == estagio.lower()]
-
-    # Resposta
     if not resultado.empty:
-        if "quantos" in pergunta.lower():
+        if parametros["acao"] == "contar":
             st.success(f"Encontramos **{len(resultado)}** empreendimentos com base na sua pergunta.")
         else:
             st.success("Aqui estão os empreendimentos encontrados:")
-        st.dataframe(resultado[["Empreendimento", "Estágio", "Executor"]].reset_index(drop=True))
+            st.dataframe(resultado[["Empreendimento", "Estágio", "Executor", "Município", "UF"]].reset_index(drop=True))
     else:
         st.warning("Nenhum dado encontrado com base na sua pergunta.")
 

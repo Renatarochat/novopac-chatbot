@@ -101,7 +101,9 @@ if pergunta:
     })
 
     parametros = interpretar_pergunta(pergunta)
-    
+
+    st.write("🧪 Parâmetros interpretados:", parametros)
+
     # Mapeamento de estados por nome para sigla
     mapa_estados = {
         "acre": "AC", "alagoas": "AL", "amapá": "AP", "amazonas": "AM", "bahia": "BA",
@@ -113,12 +115,12 @@ if pergunta:
         "sergipe": "SE", "tocantins": "TO"
     }
     
-    # Converte nome para sigla se necessário
+    # Converte nome do estado para sigla (se for nome por extenso)
     uf_input = parametros.get("uf")
     if uf_input:
         uf_input_lower = uf_input.lower()
         parametros["uf"] = mapa_estados.get(uf_input_lower, uf_input).upper()
-    
+
     # Se algum parâmetro não foi identificado na nova pergunta, usa o anterior
     for chave in ["municipio", "uf", "estagio", "acao"]:
         if not parametros.get(chave):

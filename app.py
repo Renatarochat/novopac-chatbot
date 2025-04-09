@@ -48,71 +48,36 @@ data = carregar_dados()
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
-# Função para interpretar a pergunta
-def remover_acentos(texto):
-    return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')
-
+# Função para interpretar pergunta
 def interpretar_pergunta(pergunta):
-    parametros = {
-        "municipio": None,
-        "uf": None,
-        "estagio": None,
-        "acao": None
-    }
+    system_prompt = """
+Você é um assistente inteligente que ajuda a entender perguntas sobre uma base de dados do programa Novo PAC.
+A planilha possui os campos: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
+O campo "Estágio" pode conter: "Em ação preparatória", "Em licitação / leilão", "Em execução", "Concluído".
 
-    pergunta_normalizada = remover_acentos(pergunta.lower())
+Sua tarefa é retornar um JSON com os seguintes campos:
+- municipio
+- uf
+- estagio (com base no significado do usuário: "entregues" = "Concluído")
+- acao ("contar" ou "listar")
 
-    # Detecta ação (contar ou listar)
-    if any(p in pergunta_normalizada for p in ["quantos", "numero", "quantidade", "tem em", "tem quantos"]):
-        parametros["acao"] = "contar"
-    elif any(p in pergunta_normalizada for p in ["quais", "listar", "mostra", "lista", "exibe"]):
-        parametros["acao"] = "listar"
+Responda apenas com o JSON.
+    """
 
-    # Detecta UF (2 letras ou nome por extenso)
-    ufs = {
-        "acre": "AC", "alagoas": "AL", "amapa": "AP", "amazonas": "AM", "bahia": "BA", "ceara": "CE", "distrito federal": "DF",
-        "espirito santo": "ES", "goias": "GO", "maranhao": "MA", "mato grosso": "MT", "mato grosso do sul": "MS",
-        "minas gerais": "MG", "para": "PA", "paraiba": "PB", "parana": "PR", "pernambuco": "PE", "piaui": "PI",
-        "rio de janeiro": "RJ", "rio grande do norte": "RN", "rio grande do sul": "RS", "rondonia": "RO",
-        "roraima": "RR", "santa catarina": "SC", "sao paulo": "SP", "sergipe": "SE", "tocantins": "TO"
-    }
+    response = openai.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": pergunta}
+        ]
+    )
 
-    for nome, sigla in ufs.items():
-        if nome in pergunta_normalizada:
-            parametros["uf"] = sigla
-        elif re.search(rf"\b{sigla.lower()}\b", pergunta_normalizada):
-            parametros["uf"] = sigla
-
-    # Detecta município (usa regex para palavras seguidas de "em")
-    match_mun = re.search(r"em\s+([a-záéíóúãõâêôç\s]+)", pergunta.lower())
-    if match_mun:
-        municipio_raw = match_mun.group(1).strip()
-        municipio = municipio_raw.split(" ")[0] if "estado" in municipio_raw else municipio_raw
-        parametros["municipio"] = municipio.strip()
-
-    # Detecta estágio com base em sinônimos
-    if any(p in pergunta_normalizada for p in [
-        "nao foram iniciados", "nao iniciado", "nao iniciada", "nao iniciados", "nao iniciadas"
-    ]):
-        parametros["estagio"] = "em ação preparatória"
-
-    elif any(p in pergunta_normalizada for p in [
-        "em andamento", "em obras"
-    ]):
-        parametros["estagio"] = "em execução"
-
-    elif any(p in pergunta_normalizada for p in [
-        "entregues", "finalizados"
-    ]):
-        parametros["estagio"] = "concluído"
-
-    elif any(p in pergunta_normalizada for p in [
-        "em licitacao", "em leilao"
-    ]):
-        parametros["estagio"] = "em licitação / leilão"
-
+    try:
+        resposta_bruta = response.choices[0].message.content.strip()
+        parametros = eval(resposta_bruta)
+    except Exception:
+        parametros = {"municipio": None, "uf": None, "estagio": None, "acao": "listar"}
     return parametros
-
 # Interface de pergunta
 pergunta = st.chat_input("Digite sua pergunta:")
 

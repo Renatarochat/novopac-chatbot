@@ -44,7 +44,7 @@ def carregar_dados():
 
 data = carregar_dados()
 
-# Histórico de conversa (oculto)
+# Histórico de conversa
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
@@ -58,13 +58,13 @@ if "historico" not in st.session_state:
     Sua tarefa é retornar um JSON com os seguintes campos:
     - municipio
     - uf
-    - estagio (com base no significado do usuário: "entregues" = "Concluído")
+    - estagio (com base no significado do usuário: "entregues" = "Concluído", "em obras" = "Em execução", "não iniciados" = "Em ação preparatória")
     - acao ("contar" ou "listar")
     
     Responda apenas com o JSON.
         """
     
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -77,12 +77,37 @@ if "historico" not in st.session_state:
             parametros = eval(resposta_bruta)
         except Exception:
             parametros = {"municipio": None, "uf": None, "estagio": None, "acao": "listar"}
+    
+        # Normalização dos termos usados para estágio
+        mapa_estagios = {
+            "entregues": "Concluído",
+            "finalizados": "Concluído",
+            "concluído": "Concluído",
+            "em execução": "Em execução",
+            "em andamento": "Em execução",
+            "em obras": "Em execução",
+            "executando": "Em execução",
+            "em licitação": "Em licitação / leilão",
+            "em leilão": "Em licitação / leilão",
+            "licitando": "Em licitação / leilão",
+            "não iniciados": "Em ação preparatória",
+            "em planejamento": "Em ação preparatória",
+            "planejamento": "Em ação preparatória",
+            "pré-obra": "Em ação preparatória",
+        }
+    
+        estagio_user = parametros.get("estagio")
+        if estagio_user:
+            estagio_normalizado = mapa_estagios.get(estagio_user.strip().lower())
+            if estagio_normalizado:
+                parametros["estagio"] = estagio_normalizado
+    
         return parametros
 
 # Interface de pergunta
 pergunta = st.chat_input("Digite sua pergunta:")
 
-# Se a pergunta foi feita, processamos a resposta
+# Processar a pergunta
 if pergunta:
     st.session_state.historico.append({"role": "user", "content": pergunta})
 
@@ -105,50 +130,43 @@ if pergunta:
         "rondônia": "RO", "roraima": "RR", "santa catarina": "SC", "são paulo": "SP",
         "sergipe": "SE", "tocantins": "TO"
     }
-    
-    # Converte nome do estado para sigla (se for nome por extenso)
+
+    # Converte nome do estado para sigla
     uf_input = parametros.get("uf")
     if uf_input:
         uf_input_lower = uf_input.lower()
         parametros["uf"] = mapa_estados.get(uf_input_lower, uf_input).upper()
 
-    # Aplicando a lógica desejada
+    # Lógica de herança e limpeza de município/UF
     if parametros.get("municipio"):
         municipio = parametros["municipio"].lower()
         municipio_uf = data[data["Município"].str.lower() == municipio]["UF"].unique()
-    
-        # Se encontrarmos a UF correspondente ao município, usamos
-        if len(municipio_uf) == 1:
+        if len(municipio_uf) >= 1:
             parametros["uf"] = municipio_uf[0]
-        elif len(municipio_uf) > 1:
-            parametros["uf"] = municipio_uf[0]  # Pega a primeira se houver mais de uma
-    
     elif parametros.get("uf"):
-        # Se só veio nova UF, limpa o município anterior
         parametros["municipio"] = None
-    
     else:
-        # Nenhum novo município ou UF, mantém ambos os anteriores
         parametros["municipio"] = parametros_anteriores.get("municipio")
         parametros["uf"] = parametros_anteriores.get("uf")
-    
+
     # Herdar estágio e ação se não vierem
     for chave in ["estagio", "acao"]:
         if not parametros.get(chave):
             parametros[chave] = parametros_anteriores.get(chave)
-    
+
     # Atualiza o contexto
     st.session_state["parametros_anteriores"] = parametros
-    
+
+    # Filtragem dos dados
     dados_filtrados = data.copy()
-    
     if parametros["municipio"]:
         dados_filtrados = dados_filtrados[dados_filtrados["Município"].str.lower() == parametros["municipio"].lower()]
     if parametros["uf"]:
         dados_filtrados = dados_filtrados[dados_filtrados["UF"].str.lower() == parametros["uf"].lower()]
     if parametros["estagio"]:
         dados_filtrados = dados_filtrados[dados_filtrados["Estágio"].str.lower() == parametros["estagio"].lower()]
-    
+
+    # Geração da resposta
     if dados_filtrados.empty:
         resposta = "Não encontrei empreendimentos com os critérios especificados."
     elif parametros["acao"] == "contar":
@@ -157,38 +175,35 @@ if pergunta:
             local = f"na cidade de {parametros['municipio'].title()}"
         elif parametros["uf"]:
             local = f"no estado de {parametros['uf'].upper()}"
-    
+
         estagio_desc = {
             "concluído": "entregues",
             "em execução": "em execução",
             "em licitação / leilão": "em licitação ou leilão",
             "em ação preparatória": "em fase preparatória"
         }
-    
+
         tipo_info = estagio_desc.get(parametros["estagio"].lower(), "com os critérios especificados") if parametros["estagio"] else "com os critérios especificados"
-    
+
         resposta = f"Foram encontrados **{len(dados_filtrados)} empreendimentos {tipo_info} {local}**.".strip()
-    
         st.markdown(f"**🤖 Resposta:** {resposta}")
         st.session_state.historico.append({"role": "assistant", "content": resposta})
-    
     else:
         resposta = f"Segue a lista de empreendimentos encontrados ({len(dados_filtrados)}):"
         st.markdown(f"**🤖 Resposta:** {resposta}")
-    
-        if not dados_filtrados.empty and parametros["acao"] != "contar":
+        if not dados_filtrados.empty:
             st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])
             st.session_state.historico.append({"role": "assistant", "content": resposta})
-    
-    # Exibe histórico da conversa durante a sessão (sem repetir perguntas anteriores)
-    if st.session_state.historico:
-        st.markdown("### 💬 Conversa")
-        for msg in st.session_state.historico:
-            if msg["role"] == "user":
-                st.markdown(f"**🧑 Você:** {msg['content']}")
-            elif msg["role"] == "assistant":
-                st.markdown(f"**🤖 Assistente:** {msg['content']}")
-    
-        # Mostra a tabela apenas se for uma listagem
-        if "dados_filtrados" in locals() and not dados_filtrados.empty and parametros["acao"] != "contar":
-            st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])
+
+# Histórico de conversa
+if st.session_state.historico:
+    st.markdown("### 💬 Conversa")
+    for msg in st.session_state.historico:
+        if msg["role"] == "user":
+            st.markdown(f"**🧑 Você:** {msg['content']}")
+        elif msg["role"] == "assistant":
+            st.markdown(f"**🤖 Assistente:** {msg['content']}")
+
+    # Tabela final (evita repetição da listagem acima)
+    if "dados_filtrados" in locals() and not dados_filtrados.empty and parametros["acao"] != "contar":
+        st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])

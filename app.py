@@ -137,20 +137,19 @@ if pergunta:
         uf_input_lower = uf_input.lower()
         parametros["uf"] = mapa_estados.get(uf_input_lower, uf_input).upper()
 
-    # Lógica de herança e limpeza de município/UF
+    # Limpeza de contexto: se UF nova for fornecida, limpe o município anterior
+    if parametros.get("uf") and not parametros.get("municipio"):
+        parametros["municipio"] = None
+    
+    # Se município for informado, atualiza a UF com base no dado
     if parametros.get("municipio"):
         municipio = parametros["municipio"].lower()
         municipio_uf = data[data["Município"].str.lower() == municipio]["UF"].unique()
         if len(municipio_uf) >= 1:
             parametros["uf"] = municipio_uf[0]
-    elif parametros.get("uf"):
-        parametros["municipio"] = None
-    else:
-        parametros["municipio"] = parametros_anteriores.get("municipio")
-        parametros["uf"] = parametros_anteriores.get("uf")
-
-    # Herdar estágio e ação se não vierem
-    for chave in ["estagio", "acao"]:
+    
+    # Herdar apenas o que não foi informado E não conflita
+    for chave in ["municipio", "uf", "estagio", "acao"]:
         if not parametros.get(chave):
             parametros[chave] = parametros_anteriores.get(chave)
 

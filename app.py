@@ -58,7 +58,7 @@ def interpretar_pergunta(pergunta):
     Sua tarefa é retornar um JSON com os seguintes campos:
     - municipio
     - uf
-    - estagio (com base no significado do usuário: "entregues" = "Concluído")
+    - estagio (somente se a pergunta mencionar explicitamente uma fase como "entregues" = "Concluído", "em execução", "não iniciado" = "Em ação preparatória", etc. Caso contrário, deixe como null)
     - acao ("contar" ou "listar")
 
     Responda apenas com o JSON.

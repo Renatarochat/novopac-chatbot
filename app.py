@@ -66,9 +66,9 @@ def interpretar_pergunta(pergunta):
     O campo "Executor" pode conter: "Federal", "Estadual", "Privado", "Municipal"
     
     Sua tarefa é interprestar a pergunta do usuário e retornar uma resposta coerente, em linguagem natural, com base nos seguintes itens:
-    - municipio
-    - uf
-    - estagio (somente se a pergunta mencionar explicitamente uma fase como "entregues" = "Concluído", "em execução", "não iniciado" = "Em ação preparatória", etc. Caso contrário, deixe como null)
+    - municipio (fazer filtro se informar o município)
+    - uf (fazer filtro se informar o estado)
+    - estagio (somente se a pergunta mencionar explicitamente uma fase como "entregues", "Concluído", "em execução", "não iniciado", "Em ação preparatória", etc. Caso contrário, deixe como null)
     - acao ("contar" se a pergunta incluir palavras como "quantos", "quantas", "número de", "total de"; senão, use "listar")
 
     Se o usuário pedir a lista de obras você deve retornar um  JSON com os seguintes campos:

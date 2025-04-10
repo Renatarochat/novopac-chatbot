@@ -51,17 +51,25 @@ if "historico" not in st.session_state:
 # Função para interpretar pergunta
 def interpretar_pergunta(pergunta):
     system_prompt = """
-Você é um assistente inteligente que ajuda a entender perguntas sobre uma base de dados do programa Novo PAC.
-A planilha possui os campos: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
-O campo "Estágio" pode conter: "Em ação preparatória", "Em licitação / leilão", "Em execução", "Concluído".
+Você é um assistente inteligente que interpreta perguntas sobre dados do programa Novo PAC.
 
 Sua tarefa é retornar um JSON com os seguintes campos:
-- municipio
-- uf
-- estagio (com base no significado do usuário: "entregues" = "Concluído", "em obras" = "Em execução", "não iniciados" = "Em ação preparatória")
-- acao ("contar" ou "listar")
+- municipio (ou null, se não houver)
+- uf (ou null, se não houver)
+- estagio (ou null, se não estiver claro; use "Concluído" se a pergunta falar de "entregues" ou "concluídos")
+- acao (deve ser "contar" se a pergunta mencionar termos como "quantos", "quantas", "número de", "total de", ou "tem"; caso contrário, use "listar")
 
-Responda apenas com o JSON.
+Responda apenas com um JSON válido. Não adicione explicações ou texto fora do JSON.
+
+Exemplos:
+Pergunta: "Quantos empreendimentos tem em Belo Horizonte?"
+Resposta: {"municipio": "Belo Horizonte", "uf": null, "estagio": null, "acao": "contar"}
+
+Pergunta: "Quais obras foram entregues em Salvador?"
+Resposta: {"municipio": "Salvador", "uf": null, "estagio": "Concluído", "acao": "listar"}
+
+Pergunta: "Me mostre os projetos em São Paulo em execução"
+Resposta: {"municipio": "São Paulo", "uf": null, "estagio": "Em execução", "acao": "listar"}
     """
 
     response = client.chat.completions.create(
@@ -74,33 +82,9 @@ Responda apenas com o JSON.
 
     try:
         resposta_bruta = response.choices[0].message.content.strip()
-        parametros = eval(resposta_bruta)
+        parametros = json.loads(resposta_bruta)
     except Exception:
         parametros = {"municipio": None, "uf": None, "estagio": None, "acao": "listar"}
-
-    # Normalização dos termos usados para estágio
-    mapa_estagios = {
-        "entregues": "Concluído",
-        "finalizados": "Concluído",
-        "concluído": "Concluído",
-        "em execução": "Em execução",
-        "em andamento": "Em execução",
-        "em obras": "Em execução",
-        "executando": "Em execução",
-        "em licitação": "Em licitação / leilão",
-        "em leilão": "Em licitação / leilão",
-        "licitando": "Em licitação / leilão",
-        "não iniciados": "Em ação preparatória",
-        "em planejamento": "Em ação preparatória",
-        "planejamento": "Em ação preparatória",
-        "pré-obra": "Em ação preparatória",
-    }
-
-    estagio_user = parametros.get("estagio")
-    if estagio_user:
-        estagio_normalizado = mapa_estagios.get(estagio_user.strip().lower())
-        if estagio_normalizado:
-            parametros["estagio"] = estagio_normalizado
 
     return parametros
 

@@ -59,7 +59,7 @@ def interpretar_pergunta(pergunta):
     - municipio
     - uf
     - estagio (somente se a pergunta mencionar explicitamente uma fase como "entregues" = "Concluído", "em execução", "não iniciado" = "Em ação preparatória", etc. Caso contrário, deixe como null)
-    - acao ("contar" ou "listar")
+    - acao ("contar" se a pergunta incluir palavras como "quantos", "quantas", "número de", "total de"; senão, use "listar")
 
     Responda apenas com o JSON.
     """

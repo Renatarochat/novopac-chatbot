@@ -48,62 +48,37 @@ data = carregar_dados()
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
-# Função para interpretar pergunta
-def interpretar_pergunta(pergunta):
-    system_prompt = """
-Você é um assistente inteligente que ajuda a entender perguntas sobre uma base de dados do programa Novo PAC.
-A planilha possui os campos: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
-O campo "Estágio" pode conter: "Em ação preparatória", "Em licitação / leilão", "Em execução", "Concluído".
-
-Sua tarefa é retornar um JSON com os seguintes campos:
-- municipio
-- uf
-- estagio (com base no significado do usuário: "entregues" = "Concluído", "em obras" = "Em execução", "não iniciados" = "Em ação preparatória")
-- acao ("contar" ou "listar")
-
-Responda apenas com o JSON.
-    """
-
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": pergunta}
-        ]
-    )
-
-    try:
-        resposta_bruta = response.choices[0].message.content.strip()
-        parametros = eval(resposta_bruta)
-    except Exception:
-        parametros = {"municipio": None, "uf": None, "estagio": None, "acao": "listar"}
-
-    # Normalização dos termos usados para estágio
-    mapa_estagios = {
-        "entregues": "Concluído",
-        "finalizados": "Concluído",
-        "concluído": "Concluído",
-        "em execução": "Em execução",
-        "em andamento": "Em execução",
-        "em obras": "Em execução",
-        "executando": "Em execução",
-        "em licitação": "Em licitação / leilão",
-        "em leilão": "Em licitação / leilão",
-        "licitando": "Em licitação / leilão",
-        "não iniciados": "Em ação preparatória",
-        "em planejamento": "Em ação preparatória",
-        "planejamento": "Em ação preparatória",
-        "pré-obra": "Em ação preparatória",
-    }
-
-    estagio_user = parametros.get("estagio")
-    if estagio_user:
-        estagio_normalizado = mapa_estagios.get(estagio_user.strip().lower())
-        if estagio_normalizado:
-            parametros["estagio"] = estagio_normalizado
-
-    return parametros
-
+    # Função para interpretar pergunta
+    def interpretar_pergunta(pergunta):
+        system_prompt = """
+    Você é um assistente inteligente que ajuda a entender perguntas sobre uma base de dados do programa Novo PAC.
+    A planilha possui os campos: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
+    O campo "Estágio" pode conter: "Em ação preparatória", "Em licitação / leilão", "Em execução", "Concluído".
+    
+    Sua tarefa é retornar um JSON com os seguintes campos:
+    - municipio
+    - uf
+    - estagio (com base no significado do usuário: "entregues" = "Concluído")
+    - acao ("contar" ou "listar")
+    
+    Responda apenas com o JSON.
+        """
+    
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": pergunta}
+            ]
+        )
+    
+        try:
+            resposta_bruta = response.choices[0].message.content.strip()
+            parametros = eval(resposta_bruta)
+        except Exception:
+            parametros = {"municipio": None, "uf": None, "estagio": None, "acao": "listar"}
+        return parametros
+        
 # Interface de pergunta
 pergunta = st.chat_input("Digite sua pergunta:")
 
@@ -111,15 +86,16 @@ pergunta = st.chat_input("Digite sua pergunta:")
 if pergunta:
     st.session_state.historico.append({"role": "user", "content": pergunta})
 
-    # Recupera contexto anterior
+        # Recupera contexto anterior
     parametros_anteriores = st.session_state.get("parametros_anteriores", {
         "municipio": None,
         "uf": None,
         "estagio": None,
         "acao": None
     })
+    
     parametros = interpretar_pergunta(pergunta)
-
+    
     # Mapeamento de estados por nome para sigla
     mapa_estados = {
         "acre": "AC", "alagoas": "AL", "amapá": "AP", "amazonas": "AM", "bahia": "BA",
@@ -137,35 +113,36 @@ if pergunta:
         uf_input_lower = uf_input.lower()
         parametros["uf"] = mapa_estados.get(uf_input_lower, uf_input).upper()
 
-    # Lógica de atualização de município e UF conforme a pergunta
-    municipio = parametros.get("municipio")
-    uf = parametros.get("uf")
     
-    # Se veio novo município, atualiza município e uf
-    if municipio:
-        municipio = municipio.lower()
-        parametros["municipio"] = municipio
+    # Aplicando a lógica desejada
+    if parametros.get("municipio"):
+        municipio = parametros["municipio"].lower()
         municipio_uf = data[data["Município"].str.lower() == municipio]["UF"].unique()
-        if len(municipio_uf) >= 1:
-            parametros["uf"] = municipio_uf[0]
     
-    # Se veio nova UF (e não veio município), limpa o município anterior
-    elif uf:
-        uf_input_lower = uf.lower()
-        parametros["uf"] = mapa_estados.get(uf_input_lower, uf).upper()
+        # Se encontrarmos a UF correspondente ao município, usamos
+        if len(municipio_uf) == 1:
+            parametros["uf"] = municipio_uf[0]
+        elif len(municipio_uf) > 1:
+            parametros["uf"] = municipio_uf[0]  # Pega a primeira se houver mais de uma
+    
+    elif parametros.get("uf"):
+        # Se só veio nova UF, limpa o município anterior
         parametros["municipio"] = None
     
-    # Se não veio nem município nem UF, mantém os anteriores
     else:
+        # Nenhum novo município ou UF, mantém ambos os anteriores
         parametros["municipio"] = parametros_anteriores.get("municipio")
         parametros["uf"] = parametros_anteriores.get("uf")
-
-    # Herda apenas a ação se não vier explicitamente (não herda estágio)
-    if not parametros.get("acao"):
-        parametros["acao"] = parametros_anteriores.get("acao")
-
+    
+    # Herdar estágio e ação se não vierem
+    for chave in ["estagio", "acao"]:
+        if not parametros.get(chave):
+            parametros[chave] = parametros_anteriores.get(chave)
+    
     # Atualiza o contexto
     st.session_state["parametros_anteriores"] = parametros
+
+    
 
     # Filtragem dos dados
     dados_filtrados = data.copy()

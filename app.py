@@ -48,9 +48,9 @@ data = carregar_dados()
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
-    # Função para interpretar pergunta
-    def interpretar_pergunta(pergunta):
-        system_prompt = """
+# 🔄 Agora a função está fora do if!
+def interpretar_pergunta(pergunta):
+    system_prompt = """
     Você é um assistente inteligente que ajuda a entender perguntas sobre uma base de dados do programa Novo PAC.
     A planilha possui os campos: Eixo, Subeixo, UF, Município, Empreendimento, Modalidade, Classificação, Estágio, Executor.
     O campo "Estágio" pode conter: "Em ação preparatória", "Em licitação / leilão", "Em execução", "Concluído".
@@ -60,24 +60,24 @@ if "historico" not in st.session_state:
     - uf
     - estagio (com base no significado do usuário: "entregues" = "Concluído")
     - acao ("contar" ou "listar")
-    
+
     Responda apenas com o JSON.
-        """
-    
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": pergunta}
-            ]
-        )
-    
-        try:
-            resposta_bruta = response.choices[0].message.content.strip()
-            parametros = eval(resposta_bruta)
-        except Exception:
-            parametros = {"municipio": None, "uf": None, "estagio": None, "acao": "listar"}
-        return parametros
+    """
+
+    response = client.chat.completions.create(  # 👈 Aqui também já está usando o nome certo
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": pergunta}
+        ]
+    )
+
+    try:
+        resposta_bruta = response.choices[0].message.content.strip()
+        parametros = eval(resposta_bruta)
+    except Exception:
+        parametros = {"municipio": None, "uf": None, "estagio": None, "acao": "listar"}
+    return parametros
         
 # Interface de pergunta
 pergunta = st.chat_input("Digite sua pergunta:")

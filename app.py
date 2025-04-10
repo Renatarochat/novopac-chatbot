@@ -94,6 +94,15 @@ if pergunta:
     if not dados_filtrados.empty and parametros["acao"] != "contar":
         st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])
 
-# Exibir histórico (não visível para usuário, mas disponível para debug)
-# for mensagem in st.session_state.historico:
-#     st.write(mensagem["role"], ":", mensagem["content"])
+# Exibe histórico da conversa durante a sessão (sem repetir perguntas anteriores)
+if st.session_state.historico:
+    st.markdown("### 💬 Conversa")
+    for msg in st.session_state.historico:
+        if msg["role"] == "user":
+            st.markdown(f"**🧑 Você:** {msg['content']}")
+        elif msg["role"] == "assistant":
+            st.markdown(f"**🤖 Assistente:** {msg['content']}")
+
+    # Mostra a tabela apenas se for uma listagem
+    if "dados_filtrados" in locals() and not dados_filtrados.empty and parametros["acao"] != "contar":
+        st.dataframe(dados_filtrados[["Empreendimento", "Estágio", "Executor", "Município", "UF"]])
